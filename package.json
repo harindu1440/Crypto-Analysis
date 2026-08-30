@@ -9,7 +9,7 @@
     "build": "npm run build --prefix frontend && tsc",
     "test": "jest",
     "start": "node dist/server.js",
-    "postinstall": "npm install --prefix frontend"
+    "postinstall": "npm install --prefix frontend && npm run build"
   },
   "dependencies": {
     "cors": "^2.8.5",
