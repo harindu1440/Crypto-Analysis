@@ -4,7 +4,7 @@ import http from 'http';
 import { WebSocketServer } from 'ws';
 import { binanceWS } from './server/services/binance/binanceWebSocketService';
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.SERVER_PORT) || Number(process.env.PORT) || 3000;
 
 const server = http.createServer(app);
 

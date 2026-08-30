@@ -8,7 +8,7 @@ const app_1 = require("./server/app");
 const http_1 = __importDefault(require("http"));
 const ws_1 = require("ws");
 const binanceWebSocketService_1 = require("./server/services/binance/binanceWebSocketService");
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.SERVER_PORT) || Number(process.env.PORT) || 3000;
 const server = http_1.default.createServer(app_1.app);
 // Initialize Local WebSocket Server for Frontend
 const wss = new ws_1.WebSocketServer({ server });
