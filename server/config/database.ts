@@ -5,12 +5,22 @@ export interface LocalDatabaseSchema {
   scheduledPlans: any[];
   executionState: any[];
   auditLog: any[];
+  positions: any[];
+  emergencyState: any;
+  dailyRiskState: any;
 }
 
 export class LocalDatabase {
   private static filePath = path.join(__dirname, '../../data/database.json');
   private static lockPath = path.join(__dirname, '../../data/database.lock');
-  private static data: LocalDatabaseSchema = { scheduledPlans: [], executionState: [], auditLog: [] };
+  private static data: LocalDatabaseSchema = { 
+    scheduledPlans: [], 
+    executionState: [], 
+    auditLog: [],
+    positions: [],
+    emergencyState: { isHalted: false },
+    dailyRiskState: { date: new Date().toISOString().split('T')[0], realizedLoss: 0 }
+  };
 
   public static initialize() {
     const dir = path.dirname(this.filePath);
@@ -28,9 +38,20 @@ export class LocalDatabase {
     try {
       const rawData = fs.readFileSync(this.filePath, 'utf8');
       this.data = JSON.parse(rawData);
+      // Migration fallbacks
+      if (!this.data.positions) this.data.positions = [];
+      if (!this.data.emergencyState) this.data.emergencyState = { isHalted: false };
+      if (!this.data.dailyRiskState) this.data.dailyRiskState = { date: new Date().toISOString().split('T')[0], realizedLoss: 0 };
     } catch (e) {
       console.error('Failed to load database:', e);
-      this.data = { scheduledPlans: [], executionState: [], auditLog: [] };
+      this.data = { 
+        scheduledPlans: [], 
+        executionState: [], 
+        auditLog: [],
+        positions: [],
+        emergencyState: { isHalted: false },
+        dailyRiskState: { date: new Date().toISOString().split('T')[0], realizedLoss: 0 }
+      };
     }
   }
 
@@ -58,11 +79,11 @@ export class LocalDatabase {
     }
   }
 
-  public static get(key: keyof LocalDatabaseSchema): any[] {
-    return this.data[key] || [];
+  public static get(key: keyof LocalDatabaseSchema): any {
+    return this.data[key];
   }
 
-  public static set(key: keyof LocalDatabaseSchema, value: any[]) {
+  public static set(key: keyof LocalDatabaseSchema, value: any) {
     this.data[key] = value;
     this.save();
   }

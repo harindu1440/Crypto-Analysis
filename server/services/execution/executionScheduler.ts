@@ -4,6 +4,7 @@ import { ExecutionService } from './executionService';
 import { BinanceExecution } from './binanceExecution';
 import { AccountSyncService } from '../account/accountSyncService';
 import { LocalDatabase } from '../../config/database';
+import { PositionManager } from './positionManager';
 import crypto from 'crypto';
 
 export const ExecutionScheduler = {
@@ -12,23 +13,23 @@ export const ExecutionScheduler = {
 
   // Load from DB instead of using memory maps
   get scheduledPlans() {
-    const plans = LocalDatabase.get('scheduledPlans');
+    const plans = LocalDatabase.get('scheduledPlans') || [];
     const map = new Map<string, FinalTradePlan>();
-    plans.forEach(p => map.set(p.planId, p));
+    plans.forEach((p: any) => map.set(p.planId, p));
     return map;
   },
 
   get executionState() {
-    const states = LocalDatabase.get('executionState');
+    const states = LocalDatabase.get('executionState') || [];
     const map = new Map<string, ScheduledPlanState>();
-    states.forEach(s => map.set(s.planId, s));
+    states.forEach((s: any) => map.set(s.planId, s));
     return map;
   },
 
   get auditLog() {
-    const audits = LocalDatabase.get('auditLog');
+    const audits = LocalDatabase.get('auditLog') || [];
     const map = new Map<string, ExecutionAudit>();
-    audits.forEach(a => map.set(a.id, a));
+    audits.forEach((a: any) => map.set(a.id, a));
     return map;
   },
 
@@ -233,6 +234,16 @@ export const ExecutionScheduler = {
       const liveEnabled = process.env.LIVE_TRADING_ENABLED === 'true';
       if (isLive && !liveEnabled) {
         throw new Error('Execution aborted. LIVE_TRADING_ENABLED is false.');
+      }
+
+      // Phase 10: Emergency Kill Switch & Limits
+      if (PositionManager.isEmergencyStopped()) {
+        throw new Error('Execution aborted. Emergency Stop is ACTIVE.');
+      }
+
+      const maxPositions = Number(process.env.MAX_OPEN_POSITIONS) || 3;
+      if (PositionManager.getActivePositions().length >= maxPositions) {
+         throw new Error(`Execution aborted. Max open positions (${maxPositions}) reached.`);
       }
 
       // Phase 9: Account Balance Check

@@ -8,27 +8,28 @@ const executionService_1 = require("./executionService");
 const binanceExecution_1 = require("./binanceExecution");
 const accountSyncService_1 = require("../account/accountSyncService");
 const database_1 = require("../../config/database");
+const positionManager_1 = require("./positionManager");
 const crypto_1 = __importDefault(require("crypto"));
 exports.ExecutionScheduler = {
     // Execution locks prevent concurrent executions of the same plan
     executionLocks: new Set(),
     // Load from DB instead of using memory maps
     get scheduledPlans() {
-        const plans = database_1.LocalDatabase.get('scheduledPlans');
+        const plans = database_1.LocalDatabase.get('scheduledPlans') || [];
         const map = new Map();
-        plans.forEach(p => map.set(p.planId, p));
+        plans.forEach((p) => map.set(p.planId, p));
         return map;
     },
     get executionState() {
-        const states = database_1.LocalDatabase.get('executionState');
+        const states = database_1.LocalDatabase.get('executionState') || [];
         const map = new Map();
-        states.forEach(s => map.set(s.planId, s));
+        states.forEach((s) => map.set(s.planId, s));
         return map;
     },
     get auditLog() {
-        const audits = database_1.LocalDatabase.get('auditLog');
+        const audits = database_1.LocalDatabase.get('auditLog') || [];
         const map = new Map();
-        audits.forEach(a => map.set(a.id, a));
+        audits.forEach((a) => map.set(a.id, a));
         return map;
     },
     saveState(plans, states) {
@@ -198,6 +199,14 @@ exports.ExecutionScheduler = {
             const liveEnabled = process.env.LIVE_TRADING_ENABLED === 'true';
             if (isLive && !liveEnabled) {
                 throw new Error('Execution aborted. LIVE_TRADING_ENABLED is false.');
+            }
+            // Phase 10: Emergency Kill Switch & Limits
+            if (positionManager_1.PositionManager.isEmergencyStopped()) {
+                throw new Error('Execution aborted. Emergency Stop is ACTIVE.');
+            }
+            const maxPositions = Number(process.env.MAX_OPEN_POSITIONS) || 3;
+            if (positionManager_1.PositionManager.getActivePositions().length >= maxPositions) {
+                throw new Error(`Execution aborted. Max open positions (${maxPositions}) reached.`);
             }
             // Phase 9: Account Balance Check
             if (process.env.ACCOUNT_EQUITY_MODE === 'binance') {

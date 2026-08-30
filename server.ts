@@ -5,6 +5,8 @@ import { WebSocketServer } from 'ws';
 import { binanceWS } from './server/services/binance/binanceWebSocketService';
 import { LocalDatabase } from './server/config/database';
 import './server/services/execution/reconciliationService';
+import './server/services/execution/protectionService';
+import './server/services/execution/positionManager';
 
 LocalDatabase.initialize();
 

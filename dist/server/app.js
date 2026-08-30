@@ -167,6 +167,32 @@ app.post('/api/execution/cancel/:planId', (req, res) => {
 app.get('/api/execution/audit/:planId', (req, res) => {
     res.json(executionScheduler_1.ExecutionScheduler.getAuditLog(req.params.planId));
 });
+// Phase 10: Position & Lifecycle Endpoints
+const positionManager_1 = require("./services/execution/positionManager");
+app.get('/api/trading/positions', (req, res) => {
+    res.json(positionManager_1.PositionManager.getActivePositions());
+});
+app.get('/api/trading/history', (req, res) => {
+    const history = positionManager_1.PositionManager.getPositions().filter(p => p.status === 'CLOSED' || p.status === 'FAILED');
+    res.json(history);
+});
+app.post('/api/trading/positions/:id/close', async (req, res) => {
+    try {
+        const pos = await positionManager_1.PositionManager.closePosition(req.params.id);
+        res.json(pos);
+    }
+    catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+app.get('/api/trading/emergency-stop', (req, res) => {
+    res.json({ isHalted: positionManager_1.PositionManager.isEmergencyStopped() });
+});
+app.post('/api/trading/emergency-stop', (req, res) => {
+    const { halted } = req.body;
+    positionManager_1.PositionManager.setEmergencyStop(halted === true);
+    res.json({ isHalted: positionManager_1.PositionManager.isEmergencyStopped() });
+});
 // Phase 8 Monitoring Endpoints
 const monitoringService_1 = require("./services/monitoring/monitoringService");
 app.get('/api/monitoring/status', (req, res) => {

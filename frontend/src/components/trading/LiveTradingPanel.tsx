@@ -19,6 +19,9 @@ interface UpcomingPlan {
 export const LiveTradingPanel: React.FC = () => {
   const [account, setAccount] = useState<AccountStatus | null>(null);
   const [upcoming, setUpcoming] = useState<UpcomingPlan[]>([]);
+  const [positions, setPositions] = useState<any[]>([]);
+  const [isEmergencyStopped, setIsEmergencyStopped] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -28,6 +31,13 @@ export const LiveTradingPanel: React.FC = () => {
         
         const upRes = await fetch('/api/execution/upcoming');
         setUpcoming(await upRes.json());
+        
+        const posRes = await fetch('/api/trading/positions');
+        setPositions(await posRes.json());
+        
+        const stopRes = await fetch('/api/trading/emergency-stop');
+        const stopData = await stopRes.json();
+        setIsEmergencyStopped(stopData.isHalted);
       } catch (e) {
         console.error('Failed to fetch live trading data', e);
       }
@@ -37,9 +47,52 @@ export const LiveTradingPanel: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const toggleEmergencyStop = async () => {
+    if (!window.confirm(`Are you sure you want to ${isEmergencyStopped ? 'ENABLE' : 'DISABLE'} trading?`)) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/trading/emergency-stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ halted: !isEmergencyStopped })
+      });
+      const data = await res.json();
+      setIsEmergencyStopped(data.isHalted);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closePosition = async (id: string, symbol: string) => {
+    if (!window.confirm(`Are you sure you want to CLOSE the position for ${symbol}? This will place a real market order.`)) return;
+    
+    try {
+      await fetch(`/api/trading/positions/${id}/close`, { method: 'POST' });
+      const posRes = await fetch('/api/trading/positions');
+      setPositions(await posRes.json());
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return (
     <Card title="Live Trading Control">
       <div className="live-trading-panel">
+        
+        <div className={`emergency-banner ${isEmergencyStopped ? 'halted' : 'active'}`}>
+          <div className="banner-text">
+            {isEmergencyStopped ? 'TRADING HALTED (EMERGENCY STOP ACTIVE)' : 'SYSTEM ACTIVE (LIVE TRADING)'}
+          </div>
+          <button 
+            className={`btn ${isEmergencyStopped ? 'btn-resume' : 'btn-danger'}`} 
+            onClick={toggleEmergencyStop}
+            disabled={loading}
+          >
+            {isEmergencyStopped ? 'RESUME TRADING' : 'EMERGENCY STOP'}
+          </button>
+        </div>
         <div className="status-section">
           <h3>Binance Account</h3>
           {account ? (
@@ -65,6 +118,29 @@ export const LiveTradingPanel: React.FC = () => {
             ))
           ) : (
             <div className="empty-state">No upcoming trades.</div>
+          )}
+        </div>
+
+        <div className="positions-section">
+          <h3>Active Positions</h3>
+          {positions.length > 0 ? (
+            positions.map(pos => (
+              <div key={pos.id} className="position-item">
+                <div className="pos-header">
+                  <strong>{pos.symbol}</strong> <span className={`tag ${pos.side.toLowerCase()}`}>{pos.side}</span>
+                </div>
+                <div className="pos-details">
+                  <div>Entry: ${pos.entryPrice}</div>
+                  <div>Size: {pos.quantity}</div>
+                  <div>Unrealized PnL: <span className={pos.unrealizedPnL >= 0 ? 'text-positive' : 'text-danger'}>${pos.unrealizedPnL.toFixed(2)}</span></div>
+                </div>
+                <div className="pos-actions">
+                  <button className="btn btn-close" onClick={() => closePosition(pos.id, pos.symbol)}>CLOSE POSITION</button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="empty-state">No active positions.</div>
           )}
         </div>
       </div>

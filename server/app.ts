@@ -180,6 +180,37 @@ app.get('/api/execution/audit/:planId', (req, res) => {
   res.json(ExecutionScheduler.getAuditLog(req.params.planId));
 });
 
+// Phase 10: Position & Lifecycle Endpoints
+import { PositionManager } from './services/execution/positionManager';
+
+app.get('/api/trading/positions', (req, res) => {
+  res.json(PositionManager.getActivePositions());
+});
+
+app.get('/api/trading/history', (req, res) => {
+  const history = PositionManager.getPositions().filter(p => p.status === 'CLOSED' || p.status === 'FAILED');
+  res.json(history);
+});
+
+app.post('/api/trading/positions/:id/close', async (req, res) => {
+  try {
+    const pos = await PositionManager.closePosition(req.params.id);
+    res.json(pos);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get('/api/trading/emergency-stop', (req, res) => {
+  res.json({ isHalted: PositionManager.isEmergencyStopped() });
+});
+
+app.post('/api/trading/emergency-stop', (req, res) => {
+  const { halted } = req.body;
+  PositionManager.setEmergencyStop(halted === true);
+  res.json({ isHalted: PositionManager.isEmergencyStopped() });
+});
+
 // Phase 8 Monitoring Endpoints
 import { MonitoringService } from './services/monitoring/monitoringService';
 

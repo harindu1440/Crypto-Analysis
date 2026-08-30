@@ -39,3 +39,52 @@
 
 .text-positive { color: var(--color-positive); }
 .text-danger { color: var(--color-danger); }
+
+.emergency-banner {
+  padding: 16px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+}
+
+.emergency-banner.active { background: rgba(0, 255, 0, 0.1); border: 1px solid var(--color-positive); }
+.emergency-banner.halted { background: rgba(255, 0, 0, 0.2); border: 1px solid var(--color-danger); color: var(--color-danger); }
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.btn-danger { background: var(--color-danger); color: #fff; }
+.btn-resume { background: var(--color-positive); color: #000; }
+.btn-close { background: var(--surface-3); color: #fff; }
+
+.positions-section {
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: 8px;
+}
+
+.position-item {
+  background: var(--surface-1);
+  padding: 12px;
+  margin-top: 8px;
+  border-radius: 4px;
+}
+
+.pos-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.pos-details {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+}

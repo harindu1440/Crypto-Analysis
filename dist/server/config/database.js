@@ -9,7 +9,14 @@ const path_1 = __importDefault(require("path"));
 class LocalDatabase {
     static filePath = path_1.default.join(__dirname, '../../data/database.json');
     static lockPath = path_1.default.join(__dirname, '../../data/database.lock');
-    static data = { scheduledPlans: [], executionState: [], auditLog: [] };
+    static data = {
+        scheduledPlans: [],
+        executionState: [],
+        auditLog: [],
+        positions: [],
+        emergencyState: { isHalted: false },
+        dailyRiskState: { date: new Date().toISOString().split('T')[0], realizedLoss: 0 }
+    };
     static initialize() {
         const dir = path_1.default.dirname(this.filePath);
         if (!fs_1.default.existsSync(dir)) {
@@ -26,10 +33,24 @@ class LocalDatabase {
         try {
             const rawData = fs_1.default.readFileSync(this.filePath, 'utf8');
             this.data = JSON.parse(rawData);
+            // Migration fallbacks
+            if (!this.data.positions)
+                this.data.positions = [];
+            if (!this.data.emergencyState)
+                this.data.emergencyState = { isHalted: false };
+            if (!this.data.dailyRiskState)
+                this.data.dailyRiskState = { date: new Date().toISOString().split('T')[0], realizedLoss: 0 };
         }
         catch (e) {
             console.error('Failed to load database:', e);
-            this.data = { scheduledPlans: [], executionState: [], auditLog: [] };
+            this.data = {
+                scheduledPlans: [],
+                executionState: [],
+                auditLog: [],
+                positions: [],
+                emergencyState: { isHalted: false },
+                dailyRiskState: { date: new Date().toISOString().split('T')[0], realizedLoss: 0 }
+            };
         }
     }
     static save() {
@@ -56,7 +77,7 @@ class LocalDatabase {
         }
     }
     static get(key) {
-        return this.data[key] || [];
+        return this.data[key];
     }
     static set(key, value) {
         this.data[key] = value;

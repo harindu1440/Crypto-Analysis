@@ -10,6 +10,8 @@ const ws_1 = require("ws");
 const binanceWebSocketService_1 = require("./server/services/binance/binanceWebSocketService");
 const database_1 = require("./server/config/database");
 require("./server/services/execution/reconciliationService");
+require("./server/services/execution/protectionService");
+require("./server/services/execution/positionManager");
 database_1.LocalDatabase.initialize();
 const PORT = Number(process.env.SERVER_PORT) || Number(process.env.PORT) || 3000;
 const server = http_1.default.createServer(app_1.app);
