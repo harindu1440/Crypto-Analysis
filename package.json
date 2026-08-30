@@ -9,7 +9,7 @@
     "build": "npm run build --prefix frontend && tsc",
     "test": "jest",
     "start": "node dist/server.js",
-    "postinstall": "node -e \"fs.rmSync('frontend/node_modules',{recursive:true,force:true});fs.rmSync('frontend/package-lock.json',{force:true})\" && npm install --prefix frontend --no-package-lock && npm run build"
+    "postinstall": "npm install --prefix frontend"
   },
   "dependencies": {
     "cors": "^2.8.5",
