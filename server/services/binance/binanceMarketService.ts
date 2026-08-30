@@ -14,6 +14,7 @@ export const BinanceMarketService = {
         baseAsset: s.baseAsset,
         quoteAsset: s.quoteAsset,
         status: s.status,
+        filters: s.filters || [],
       }));
   },
 

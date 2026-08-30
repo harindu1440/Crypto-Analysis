@@ -3,6 +3,7 @@ export interface BinanceSymbol {
   baseAsset: string;
   quoteAsset: string;
   status: string;
+  filters: any[];
 }
 
 export interface BinanceTicker {
