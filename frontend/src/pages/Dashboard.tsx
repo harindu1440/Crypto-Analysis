@@ -3,6 +3,7 @@ import { MarketSummaryCard } from '../components/market/MarketSummaryCard';
 import { MarketTable } from '../components/market/MarketTable';
 import { mockMarketSummary } from '../data/mockMarketData';
 import { Card } from '../components/common/Card';
+import { LiveTradingPanel } from '../components/trading/LiveTradingPanel';
 import { useGlobalMarketData } from '../context/MarketDataContext';
 import { getTicker } from '../services/binanceApi';
 import type { MarketAsset } from '../types';
@@ -80,6 +81,8 @@ const Dashboard: React.FC = () => {
 
       {/* Keep mock market summary for now as calculating total market cap needs more complex logic */}
       <MarketSummaryCard summary={mockMarketSummary} />
+
+      <LiveTradingPanel />
 
       <Card title="My Markets">
         {displayAssets.length > 0 ? (

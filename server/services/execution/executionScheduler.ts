@@ -3,15 +3,39 @@ import { ScheduledPlanState, ExecutionAudit, ExecutionStatus } from './types';
 import { ExecutionService } from './executionService';
 import { BinanceExecution } from './binanceExecution';
 import { AccountSyncService } from '../account/accountSyncService';
+import { LocalDatabase } from '../../config/database';
 import crypto from 'crypto';
 
 export const ExecutionScheduler = {
-  scheduledPlans: new Map<string, FinalTradePlan>(),
-  executionState: new Map<string, ScheduledPlanState>(),
-  auditLog: new Map<string, ExecutionAudit>(),
-  
   // Execution locks prevent concurrent executions of the same plan
   executionLocks: new Set<string>(),
+
+  // Load from DB instead of using memory maps
+  get scheduledPlans() {
+    const plans = LocalDatabase.get('scheduledPlans');
+    const map = new Map<string, FinalTradePlan>();
+    plans.forEach(p => map.set(p.planId, p));
+    return map;
+  },
+
+  get executionState() {
+    const states = LocalDatabase.get('executionState');
+    const map = new Map<string, ScheduledPlanState>();
+    states.forEach(s => map.set(s.planId, s));
+    return map;
+  },
+
+  get auditLog() {
+    const audits = LocalDatabase.get('auditLog');
+    const map = new Map<string, ExecutionAudit>();
+    audits.forEach(a => map.set(a.id, a));
+    return map;
+  },
+
+  saveState(plans: Map<string, FinalTradePlan>, states: Map<string, ScheduledPlanState>) {
+    LocalDatabase.set('scheduledPlans', Array.from(plans.values()));
+    LocalDatabase.set('executionState', Array.from(states.values()));
+  },
 
   schedulePlan(plan: FinalTradePlan, executeAt: number) {
     if (plan.validation.status !== 'VALID') {
@@ -22,21 +46,22 @@ export const ExecutionScheduler = {
       throw new Error('Cannot schedule an expired plan.');
     }
 
-    if (this.scheduledPlans.has(plan.planId)) {
+    const plans = this.scheduledPlans;
+    const states = this.executionState;
+
+    if (plans.has(plan.planId)) {
       throw new Error('Plan is already scheduled.');
     }
 
-    // Duplicate identifier protection (same symbol, same timestamp timeframe)
-    // In a real system, you might check if there's an active trade for this symbol.
-    // For now, we allow multiple if planId is unique, but it's recorded.
-
-    this.scheduledPlans.set(plan.planId, plan);
-    this.executionState.set(plan.planId, {
+    plans.set(plan.planId, plan);
+    states.set(plan.planId, {
       planId: plan.planId,
       scheduledAt: executeAt,
       status: 'PENDING',
       preTradeNotificationSent: false
     });
+
+    this.saveState(plans, states);
 
     this.recordAudit({
       id: crypto.randomUUID(),
@@ -51,7 +76,10 @@ export const ExecutionScheduler = {
   },
 
   cancelPlan(planId: string) {
-    const state = this.executionState.get(planId);
+    const plans = this.scheduledPlans;
+    const states = this.executionState;
+    const state = states.get(planId);
+    
     if (!state) throw new Error('Plan not found.');
     
     if (['EXECUTING', 'EXECUTED', 'FAILED', 'EXPIRED', 'CANCELLED', 'EXECUTION_UNCERTAIN'].includes(state.status)) {
@@ -59,7 +87,9 @@ export const ExecutionScheduler = {
     }
 
     state.status = 'CANCELLED';
-    this.scheduledPlans.delete(planId);
+    plans.delete(planId);
+    this.saveState(plans, states);
+    
     console.log(`[Execution] Plan ${planId} cancelled.`);
     this.updateAuditStatus(planId, 'CANCELLED');
   },
@@ -79,28 +109,36 @@ export const ExecutionScheduler = {
   },
 
   recordAudit(audit: ExecutionAudit) {
-    this.auditLog.set(audit.id, audit);
+    LocalDatabase.insert('auditLog', audit);
   },
 
   updateAuditStatus(planId: string, status: ExecutionStatus, updates: Partial<ExecutionAudit> = {}) {
-    const audits = this.getAuditLog(planId);
+    const auditsMap = this.auditLog;
+    const audits = Array.from(auditsMap.values()).filter(a => a.planId === planId);
     if (audits.length > 0) {
       const latest = audits[audits.length - 1]; // Assume last is current
       Object.assign(latest, { status, ...updates });
+      auditsMap.set(latest.id, latest);
+      LocalDatabase.set('auditLog', Array.from(auditsMap.values()));
     }
   },
 
   async runTick() {
     const now = Date.now();
-    for (const [planId, state] of this.executionState.entries()) {
+    const plans = this.scheduledPlans;
+    const states = this.executionState;
+    let stateChanged = false;
+
+    for (const [planId, state] of states.entries()) {
       
-      const plan = this.scheduledPlans.get(planId);
+      const plan = plans.get(planId);
       if (!plan) continue;
 
       // 1. Expiration check
       if (now >= plan.expiresAt && ['PENDING', 'COUNTDOWN', 'READY'].includes(state.status)) {
         state.status = 'EXPIRED';
-        this.scheduledPlans.delete(planId);
+        plans.delete(planId);
+        stateChanged = true;
         this.updateAuditStatus(planId, 'EXPIRED');
         console.log(`[Execution] Plan ${planId} expired.`);
         continue;
@@ -110,10 +148,14 @@ export const ExecutionScheduler = {
 
       // 2. Pre-trade Notification (5 minutes)
       if (timeRemaining <= 5 * 60 * 1000 && timeRemaining > 0) {
-        if (state.status === 'PENDING') state.status = 'COUNTDOWN';
+        if (state.status === 'PENDING') {
+          state.status = 'COUNTDOWN';
+          stateChanged = true;
+        }
         
         if (!state.preTradeNotificationSent) {
           state.preTradeNotificationSent = true;
+          stateChanged = true;
           console.log(`[Execution] TRADE EXECUTION ALERT: ${plan.symbol} ${plan.direction} executing in < 5 mins!`);
           // We don't have SSE, but the frontend will poll /api/execution/upcoming and see COUNTDOWN
         }
@@ -138,6 +180,7 @@ export const ExecutionScheduler = {
                  console.log(`[Execution] Reconciled order ${planId} as ${order.status}`);
                  state.status = order.status === 'FILLED' ? 'EXECUTED' : 
                                 ['CANCELED', 'REJECTED', 'EXPIRED'].includes(order.status) ? 'FAILED' : 'EXECUTING';
+                 stateChanged = true;
                  
                  this.updateAuditStatus(planId, state.status, {
                    actualFillPrice: order.avgPrice || order.price,
@@ -145,12 +188,17 @@ export const ExecutionScheduler = {
                    accountSyncTimestamp: Date.now()
                  });
                  if (state.status === 'EXECUTED' || state.status === 'FAILED') {
-                   this.scheduledPlans.delete(planId);
+                   plans.delete(planId);
+                   this.saveState(plans, states);
                  }
               }
             }).catch(console.error);
         }
       }
+    }
+
+    if (stateChanged) {
+      this.saveState(plans, states);
     }
   },
 
@@ -161,8 +209,10 @@ export const ExecutionScheduler = {
     }
     this.executionLocks.add(planId);
 
-    const state = this.executionState.get(planId);
-    const plan = this.scheduledPlans.get(planId);
+    const plans = this.scheduledPlans;
+    const states = this.executionState;
+    const state = states.get(planId);
+    const plan = plans.get(planId);
     
     if (!state || !plan) {
       this.executionLocks.delete(planId);
@@ -252,7 +302,8 @@ export const ExecutionScheduler = {
     } finally {
       this.executionLocks.delete(planId);
       // We keep state in executionState for history, but can clean up scheduledPlans
-      this.scheduledPlans.delete(planId);
+      plans.delete(planId);
+      this.saveState(plans, states);
     }
   }
 };

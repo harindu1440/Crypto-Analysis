@@ -1,0 +1,41 @@
+.live-trading-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.status-section, .upcoming-section {
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: 8px;
+}
+
+.status-grid {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  background: var(--surface-3);
+}
+
+.tag.countdown {
+  background: var(--color-warning);
+  color: #000;
+}
+
+.upcoming-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px;
+  background: var(--surface-1);
+  margin-top: 8px;
+  border-radius: 4px;
+}
+
+.text-positive { color: var(--color-positive); }
+.text-danger { color: var(--color-danger); }

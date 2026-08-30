@@ -7,13 +7,34 @@ exports.ExecutionScheduler = void 0;
 const executionService_1 = require("./executionService");
 const binanceExecution_1 = require("./binanceExecution");
 const accountSyncService_1 = require("../account/accountSyncService");
+const database_1 = require("../../config/database");
 const crypto_1 = __importDefault(require("crypto"));
 exports.ExecutionScheduler = {
-    scheduledPlans: new Map(),
-    executionState: new Map(),
-    auditLog: new Map(),
     // Execution locks prevent concurrent executions of the same plan
     executionLocks: new Set(),
+    // Load from DB instead of using memory maps
+    get scheduledPlans() {
+        const plans = database_1.LocalDatabase.get('scheduledPlans');
+        const map = new Map();
+        plans.forEach(p => map.set(p.planId, p));
+        return map;
+    },
+    get executionState() {
+        const states = database_1.LocalDatabase.get('executionState');
+        const map = new Map();
+        states.forEach(s => map.set(s.planId, s));
+        return map;
+    },
+    get auditLog() {
+        const audits = database_1.LocalDatabase.get('auditLog');
+        const map = new Map();
+        audits.forEach(a => map.set(a.id, a));
+        return map;
+    },
+    saveState(plans, states) {
+        database_1.LocalDatabase.set('scheduledPlans', Array.from(plans.values()));
+        database_1.LocalDatabase.set('executionState', Array.from(states.values()));
+    },
     schedulePlan(plan, executeAt) {
         if (plan.validation.status !== 'VALID') {
             throw new Error('Cannot schedule an invalid plan.');
@@ -21,19 +42,19 @@ exports.ExecutionScheduler = {
         if (Date.now() >= plan.expiresAt) {
             throw new Error('Cannot schedule an expired plan.');
         }
-        if (this.scheduledPlans.has(plan.planId)) {
+        const plans = this.scheduledPlans;
+        const states = this.executionState;
+        if (plans.has(plan.planId)) {
             throw new Error('Plan is already scheduled.');
         }
-        // Duplicate identifier protection (same symbol, same timestamp timeframe)
-        // In a real system, you might check if there's an active trade for this symbol.
-        // For now, we allow multiple if planId is unique, but it's recorded.
-        this.scheduledPlans.set(plan.planId, plan);
-        this.executionState.set(plan.planId, {
+        plans.set(plan.planId, plan);
+        states.set(plan.planId, {
             planId: plan.planId,
             scheduledAt: executeAt,
             status: 'PENDING',
             preTradeNotificationSent: false
         });
+        this.saveState(plans, states);
         this.recordAudit({
             id: crypto_1.default.randomUUID(),
             planId: plan.planId,
@@ -45,14 +66,17 @@ exports.ExecutionScheduler = {
         console.log(`[Execution] Plan ${plan.planId} scheduled for ${new Date(executeAt).toISOString()}`);
     },
     cancelPlan(planId) {
-        const state = this.executionState.get(planId);
+        const plans = this.scheduledPlans;
+        const states = this.executionState;
+        const state = states.get(planId);
         if (!state)
             throw new Error('Plan not found.');
         if (['EXECUTING', 'EXECUTED', 'FAILED', 'EXPIRED', 'CANCELLED', 'EXECUTION_UNCERTAIN'].includes(state.status)) {
             throw new Error(`Cannot cancel plan in status ${state.status}`);
         }
         state.status = 'CANCELLED';
-        this.scheduledPlans.delete(planId);
+        plans.delete(planId);
+        this.saveState(plans, states);
         console.log(`[Execution] Plan ${planId} cancelled.`);
         this.updateAuditStatus(planId, 'CANCELLED');
     },
@@ -66,25 +90,32 @@ exports.ExecutionScheduler = {
         return Array.from(this.auditLog.values()).filter(a => a.planId === planId);
     },
     recordAudit(audit) {
-        this.auditLog.set(audit.id, audit);
+        database_1.LocalDatabase.insert('auditLog', audit);
     },
     updateAuditStatus(planId, status, updates = {}) {
-        const audits = this.getAuditLog(planId);
+        const auditsMap = this.auditLog;
+        const audits = Array.from(auditsMap.values()).filter(a => a.planId === planId);
         if (audits.length > 0) {
             const latest = audits[audits.length - 1]; // Assume last is current
             Object.assign(latest, { status, ...updates });
+            auditsMap.set(latest.id, latest);
+            database_1.LocalDatabase.set('auditLog', Array.from(auditsMap.values()));
         }
     },
     async runTick() {
         const now = Date.now();
-        for (const [planId, state] of this.executionState.entries()) {
-            const plan = this.scheduledPlans.get(planId);
+        const plans = this.scheduledPlans;
+        const states = this.executionState;
+        let stateChanged = false;
+        for (const [planId, state] of states.entries()) {
+            const plan = plans.get(planId);
             if (!plan)
                 continue;
             // 1. Expiration check
             if (now >= plan.expiresAt && ['PENDING', 'COUNTDOWN', 'READY'].includes(state.status)) {
                 state.status = 'EXPIRED';
-                this.scheduledPlans.delete(planId);
+                plans.delete(planId);
+                stateChanged = true;
                 this.updateAuditStatus(planId, 'EXPIRED');
                 console.log(`[Execution] Plan ${planId} expired.`);
                 continue;
@@ -92,10 +123,13 @@ exports.ExecutionScheduler = {
             const timeRemaining = state.scheduledAt - now;
             // 2. Pre-trade Notification (5 minutes)
             if (timeRemaining <= 5 * 60 * 1000 && timeRemaining > 0) {
-                if (state.status === 'PENDING')
+                if (state.status === 'PENDING') {
                     state.status = 'COUNTDOWN';
+                    stateChanged = true;
+                }
                 if (!state.preTradeNotificationSent) {
                     state.preTradeNotificationSent = true;
+                    stateChanged = true;
                     console.log(`[Execution] TRADE EXECUTION ALERT: ${plan.symbol} ${plan.direction} executing in < 5 mins!`);
                     // We don't have SSE, but the frontend will poll /api/execution/upcoming and see COUNTDOWN
                 }
@@ -118,18 +152,23 @@ exports.ExecutionScheduler = {
                             console.log(`[Execution] Reconciled order ${planId} as ${order.status}`);
                             state.status = order.status === 'FILLED' ? 'EXECUTED' :
                                 ['CANCELED', 'REJECTED', 'EXPIRED'].includes(order.status) ? 'FAILED' : 'EXECUTING';
+                            stateChanged = true;
                             this.updateAuditStatus(planId, state.status, {
                                 actualFillPrice: order.avgPrice || order.price,
                                 executedQuantity: order.executedQty,
                                 accountSyncTimestamp: Date.now()
                             });
                             if (state.status === 'EXECUTED' || state.status === 'FAILED') {
-                                this.scheduledPlans.delete(planId);
+                                plans.delete(planId);
+                                this.saveState(plans, states);
                             }
                         }
                     }).catch(console.error);
                 }
             }
+        }
+        if (stateChanged) {
+            this.saveState(plans, states);
         }
     },
     async executeSafe(planId) {
@@ -138,8 +177,10 @@ exports.ExecutionScheduler = {
             return;
         }
         this.executionLocks.add(planId);
-        const state = this.executionState.get(planId);
-        const plan = this.scheduledPlans.get(planId);
+        const plans = this.scheduledPlans;
+        const states = this.executionState;
+        const state = states.get(planId);
+        const plan = plans.get(planId);
         if (!state || !plan) {
             this.executionLocks.delete(planId);
             return;
@@ -215,7 +256,8 @@ exports.ExecutionScheduler = {
         finally {
             this.executionLocks.delete(planId);
             // We keep state in executionState for history, but can clean up scheduledPlans
-            this.scheduledPlans.delete(planId);
+            plans.delete(planId);
+            this.saveState(plans, states);
         }
     }
 };

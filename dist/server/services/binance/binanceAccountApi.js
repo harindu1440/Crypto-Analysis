@@ -96,5 +96,15 @@ exports.BinanceAccountApi = {
             time: data.time,
             updateTime: data.updateTime
         };
+    },
+    async getExchangeInfo(symbol) {
+        const query = symbol ? `symbol=${symbol}` : '';
+        const url = `${this.getApiBaseUrl()}/api/v3/exchangeInfo${query ? '?' + query : ''}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(`Binance API Error on exchangeInfo: ${data.msg}`);
+        }
+        return data;
     }
 };
