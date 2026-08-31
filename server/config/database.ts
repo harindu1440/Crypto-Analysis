@@ -12,6 +12,11 @@ export interface LocalDatabaseSchema {
   monitoringEvents: any[];
   opportunities: any[];
   notifications: any[];
+  users: any[];
+  sessions: any[];
+  watchlists: Record<string, string[]>;
+  savedOpportunities: any[];
+  userPreferences: Record<string, any>;
 }
 
 export class LocalDatabase {
@@ -27,7 +32,12 @@ export class LocalDatabase {
     monitoredAssets: [],
     monitoringEvents: [],
     opportunities: [],
-    notifications: []
+    notifications: [],
+    users: [],
+    sessions: [],
+    watchlists: {},
+    savedOpportunities: [],
+    userPreferences: {}
   };
 
   public static initialize() {
@@ -50,6 +60,11 @@ export class LocalDatabase {
       if (!this.data.positions) this.data.positions = [];
       if (!this.data.emergencyState) this.data.emergencyState = { isHalted: false };
       if (!this.data.dailyRiskState) this.data.dailyRiskState = { date: new Date().toISOString().split('T')[0], realizedLoss: 0 };
+      if (!this.data.users) this.data.users = [];
+      if (!this.data.sessions) this.data.sessions = [];
+      if (!this.data.watchlists) this.data.watchlists = {};
+      if (!this.data.savedOpportunities) this.data.savedOpportunities = [];
+      if (!this.data.userPreferences) this.data.userPreferences = {};
     } catch (e) {
       console.error('Failed to load database:', e);
       this.data = { 
@@ -62,7 +77,12 @@ export class LocalDatabase {
         monitoredAssets: [],
         monitoringEvents: [],
         opportunities: [],
-        notifications: []
+        notifications: [],
+        users: [],
+        sessions: [],
+        watchlists: {},
+        savedOpportunities: [],
+        userPreferences: {}
       };
     }
   }

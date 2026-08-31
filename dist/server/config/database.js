@@ -19,7 +19,12 @@ class LocalDatabase {
         monitoredAssets: [],
         monitoringEvents: [],
         opportunities: [],
-        notifications: []
+        notifications: [],
+        users: [],
+        sessions: [],
+        watchlists: {},
+        savedOpportunities: [],
+        userPreferences: {}
     };
     static initialize() {
         const dir = path_1.default.dirname(this.filePath);
@@ -44,6 +49,16 @@ class LocalDatabase {
                 this.data.emergencyState = { isHalted: false };
             if (!this.data.dailyRiskState)
                 this.data.dailyRiskState = { date: new Date().toISOString().split('T')[0], realizedLoss: 0 };
+            if (!this.data.users)
+                this.data.users = [];
+            if (!this.data.sessions)
+                this.data.sessions = [];
+            if (!this.data.watchlists)
+                this.data.watchlists = {};
+            if (!this.data.savedOpportunities)
+                this.data.savedOpportunities = [];
+            if (!this.data.userPreferences)
+                this.data.userPreferences = {};
         }
         catch (e) {
             console.error('Failed to load database:', e);
@@ -57,7 +72,12 @@ class LocalDatabase {
                 monitoredAssets: [],
                 monitoringEvents: [],
                 opportunities: [],
-                notifications: []
+                notifications: [],
+                users: [],
+                sessions: [],
+                watchlists: {},
+                savedOpportunities: [],
+                userPreferences: {}
             };
         }
     }

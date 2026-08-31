@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
+import cookieParser from 'cookie-parser';
 
 const app = express();
 
@@ -10,6 +11,7 @@ app.use(helmet({
   contentSecurityPolicy: false, // Often disabled for simple SPA setups, configure as needed for production
 }));
 app.use(cors());
+app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
@@ -312,17 +314,25 @@ app.post('/api/monitoring/stop', (req, res) => {
 // Phase 16: Notifications API
 import { NotificationOrchestrator } from './services/notifications/notificationOrchestrator';
 
-app.get('/api/notifications', (req, res) => {
-  res.json(NotificationOrchestrator.getNotifications());
+// Phase 17: User & Auth API
+import authRoutes from './routes/authRoutes';
+import userRoutes from './routes/userRoutes';
+import { requireAuth } from './middleware/authMiddleware';
+
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
+
+app.get('/api/notifications', requireAuth, (req: any, res) => {
+  res.json(NotificationOrchestrator.getNotifications(req.user.id));
 });
 
-app.post('/api/notifications/read/:id', (req, res) => {
+app.post('/api/notifications/read/:id', requireAuth, (req: any, res) => {
   NotificationOrchestrator.markAsRead(req.params.id);
   res.json({ success: true });
 });
 
-app.post('/api/notifications/read-all', (req, res) => {
-  NotificationOrchestrator.markAllAsRead();
+app.post('/api/notifications/read-all', requireAuth, (req: any, res) => {
+  NotificationOrchestrator.markAllAsRead(req.user.id);
   res.json({ success: true });
 });
 

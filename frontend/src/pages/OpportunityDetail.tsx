@@ -109,7 +109,7 @@ export default function OpportunityDetail() {
           </div>
         </div>
         <div className="decision-sub">
-          <span><GlossaryTooltip term="AI Confidence" />: {opp.confidence}%</span>
+          <span><GlossaryTooltip term="AI Confidence">AI Confidence</GlossaryTooltip>: {opp.confidence}%</span>
           <span>Market: {opp.marketStructure || 'Unknown'}</span>
           <span className={`status-badge ${opp.status.toLowerCase()}`}>
             Status: {opp.status}
@@ -137,19 +137,19 @@ export default function OpportunityDetail() {
             <Card title="Trade Parameters">
               <div className="zone-grid">
                 <div className="zone-item entry-zone">
-                  <label><GlossaryTooltip term="ENTRY ZONE" /></label>
+                  <label><GlossaryTooltip term="ENTRY ZONE">ENTRY ZONE</GlossaryTooltip></label>
                   <div className="price-range">${opp.entryZone.min.toFixed(4)} - ${opp.entryZone.max.toFixed(4)}</div>
                   <div className="explanation">Condition: Wait for confirmation in this zone.</div>
                 </div>
                 
                 <div className="zone-item sl-zone">
-                  <label><GlossaryTooltip term="STOP LOSS" /></label>
+                  <label><GlossaryTooltip term="STOP LOSS">STOP LOSS</GlossaryTooltip></label>
                   <div className="price-value">${opp.stopLoss.toFixed(4)}</div>
                   <div className="explanation">Invalidates the setup if hit.</div>
                 </div>
                 
                 <div className="zone-item tp-zone">
-                  <label><GlossaryTooltip term="TAKE PROFIT" /></label>
+                  <label><GlossaryTooltip term="TAKE PROFIT">TAKE PROFIT</GlossaryTooltip></label>
                   {opp.takeProfitTargets.map((tp: number, i: number) => (
                     <div key={i} className="price-value tp-val">TP{i+1}: ${tp.toFixed(4)}</div>
                   ))}
@@ -211,7 +211,7 @@ export default function OpportunityDetail() {
               <div className="rr-text">
                 R:R = 1 : {opp.riskRewardRatio?.toFixed(2)}
               </div>
-              <p className="rr-tooltip"><GlossaryTooltip term="RISK/REWARD" /></p>
+              <p className="rr-tooltip"><GlossaryTooltip term="RISK/REWARD">Risk / Reward Ratio</GlossaryTooltip></p>
             </div>
           </Card>
 

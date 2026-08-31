@@ -40,7 +40,7 @@ export const OpportunityFeed: React.FC = () => {
             <div className="opp-header">
               <span className="opp-symbol">{opp.symbol}</span>
               <span className={`opp-direction ${opp.direction.toLowerCase()}`}>
-                <GlossaryTooltip term={opp.direction} />
+                <GlossaryTooltip term={opp.direction}>{opp.direction}</GlossaryTooltip>
               </span>
               <span className="opp-confidence">Confidence: {opp.confidence}%</span>
             </div>
@@ -54,19 +54,19 @@ export const OpportunityFeed: React.FC = () => {
               
               <div className="opp-metrics">
                 <div className="metric">
-                  <label><GlossaryTooltip term="ENTRY" /></label>
+                  <label><GlossaryTooltip term="ENTRY">ENTRY</GlossaryTooltip></label>
                   <span>${opp.entryPrice.toFixed(4)}</span>
                 </div>
                 <div className="metric">
-                  <label><GlossaryTooltip term="STOP LOSS" /></label>
+                  <label><GlossaryTooltip term="STOP LOSS">STOP LOSS</GlossaryTooltip></label>
                   <span>${opp.stopLoss.toFixed(4)}</span>
                 </div>
                 <div className="metric">
-                  <label><GlossaryTooltip term="TAKE PROFIT" /></label>
+                  <label><GlossaryTooltip term="TAKE PROFIT">TAKE PROFIT</GlossaryTooltip></label>
                   <span>${opp.takeProfitTargets[0].toFixed(4)}</span>
                 </div>
                 <div className="metric">
-                  <label><GlossaryTooltip term="RISK/REWARD" /></label>
+                  <label><GlossaryTooltip term="RISK/REWARD">RISK/REWARD</GlossaryTooltip></label>
                   <span>1 : {opp.riskRewardRatio}</span>
                 </div>
               </div>

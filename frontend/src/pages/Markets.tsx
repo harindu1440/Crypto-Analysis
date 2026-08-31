@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Card } from '../components/common/Card';
 import { Search, Filter, Plus, Check } from 'lucide-react';
 import { getAvailableSymbols } from '../services/binanceApi';
@@ -93,7 +94,11 @@ const Markets: React.FC = () => {
                   return (
                     <tr key={s.symbol}>
                       <td>
-                        <div style={{ fontWeight: 'bold' }}>{s.symbol}</div>
+                        <div style={{ fontWeight: 'bold' }}>
+                          <Link to={`/markets/${s.symbol}`} className="text-blue-400 hover:text-blue-300">
+                            {s.symbol}
+                          </Link>
+                        </div>
                       </td>
                       <td>{s.baseAsset}</td>
                       <td>{s.quoteAsset}</td>

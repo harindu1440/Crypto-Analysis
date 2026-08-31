@@ -8,6 +8,7 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const path_1 = __importDefault(require("path"));
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const app = (0, express_1.default)();
 exports.app = app;
 // Middleware
@@ -15,6 +16,7 @@ app.use((0, helmet_1.default)({
     contentSecurityPolicy: false, // Often disabled for simple SPA setups, configure as needed for production
 }));
 app.use((0, cors_1.default)());
+app.use((0, cookie_parser_1.default)());
 app.use(express_1.default.json({ limit: '1mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '1mb' }));
 // API Routes
@@ -281,15 +283,21 @@ app.post('/api/monitoring/stop', (req, res) => {
 });
 // Phase 16: Notifications API
 const notificationOrchestrator_1 = require("./services/notifications/notificationOrchestrator");
-app.get('/api/notifications', (req, res) => {
-    res.json(notificationOrchestrator_1.NotificationOrchestrator.getNotifications());
+// Phase 17: User & Auth API
+const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
+const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
+const authMiddleware_1 = require("./middleware/authMiddleware");
+app.use('/api/auth', authRoutes_1.default);
+app.use('/api/user', userRoutes_1.default);
+app.get('/api/notifications', authMiddleware_1.requireAuth, (req, res) => {
+    res.json(notificationOrchestrator_1.NotificationOrchestrator.getNotifications(req.user.id));
 });
-app.post('/api/notifications/read/:id', (req, res) => {
+app.post('/api/notifications/read/:id', authMiddleware_1.requireAuth, (req, res) => {
     notificationOrchestrator_1.NotificationOrchestrator.markAsRead(req.params.id);
     res.json({ success: true });
 });
-app.post('/api/notifications/read-all', (req, res) => {
-    notificationOrchestrator_1.NotificationOrchestrator.markAllAsRead();
+app.post('/api/notifications/read-all', authMiddleware_1.requireAuth, (req, res) => {
+    notificationOrchestrator_1.NotificationOrchestrator.markAllAsRead(req.user.id);
     res.json({ success: true });
 });
 // Phase 9 Account Endpoints

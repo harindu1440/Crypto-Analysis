@@ -1,10 +1,6 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationOrchestrator = exports.notificationEmitter = void 0;
-const crypto_1 = __importDefault(require("crypto"));
 const database_1 = require("../../config/database");
 const events_1 = require("events");
 exports.notificationEmitter = new events_1.EventEmitter();
@@ -39,12 +35,48 @@ exports.NotificationOrchestrator = {
             exports.notificationEmitter.emit('notifications_read_all', userId);
         }
     },
-    dispatch(type, priority, title, message, opportunity, userId = 'global') {
+    dispatch(type, priority, title, message, opportunity) {
+        // 1. Get all active users
+        const users = database_1.LocalDatabase.get('users') || [];
+        const activeUsers = users.filter((u) => u.status === 'ACTIVE');
+        // 2. Fallback to global if no users (backward compatibility)
+        if (activeUsers.length === 0) {
+            this._createNotification('global', type, priority, title, message, opportunity);
+            return;
+        }
+        const { UserService } = require('../user/userService');
+        // 3. Fan-out to each user based on preferences
+        activeUsers.forEach(user => {
+            const prefs = UserService.getPreferences(user.id);
+            // Check event type preference
+            const prefKey = type === 'NEW_OPPORTUNITY' ? 'newOpportunity' :
+                type === 'APPROACHING_ENTRY' ? 'approachingEntry' :
+                    type === 'FIVE_MINUTE_WARNING' ? 'fiveMinuteWarning' :
+                        type === 'ENTRY_TRIGGERED' ? 'entryTriggered' :
+                            type === 'INVALIDATED' ? 'invalidated' :
+                                type === 'EXPIRED' ? 'expired' :
+                                    type === 'ORDER_EXECUTED' ? 'tradeExecuted' :
+                                        type === 'SYSTEM_ALERT' ? 'systemAlerts' : null;
+            if (prefKey && prefs.notifications[prefKey] === false)
+                return;
+            if (opportunity) {
+                // Check quality threshold
+                if (opportunity.qualityScore !== undefined && opportunity.qualityScore < prefs.minQualityScore)
+                    return;
+                // Check direction
+                if (prefs.direction !== 'BOTH' && opportunity.direction !== prefs.direction)
+                    return;
+                // Check timeframe
+                if (prefs.timeframes && !prefs.timeframes.includes(opportunity.timeframe))
+                    return;
+            }
+            this._createNotification(user.id, type, priority, title, message, opportunity);
+        });
+    },
+    _createNotification(userId, type, priority, title, message, opportunity) {
         const all = database_1.LocalDatabase.get('notifications') || [];
-        // Deduplication Key
         let dedupKey = `${userId}-${type}`;
         if (opportunity) {
-            // For UPDATED, tie dedup to version. For others, tie to status or just opportunity ID.
             if (type === 'UPDATED') {
                 dedupKey = `${userId}-${opportunity.id}-v${opportunity.version}-${type}`;
             }
@@ -52,14 +84,11 @@ exports.NotificationOrchestrator = {
                 dedupKey = `${userId}-${opportunity.id}-${type}`;
             }
         }
-        // Check dedup
         const isDuplicate = all.some((n) => n.dedupKey === dedupKey);
-        if (isDuplicate) {
-            console.log(`[Notification] Suppressed duplicate alert: ${dedupKey}`);
-            return null;
-        }
+        if (isDuplicate)
+            return;
         const notification = {
-            id: crypto_1.default.randomUUID(),
+            id: require('crypto').randomUUID(),
             userId,
             opportunityId: opportunity?.id,
             type,
@@ -72,14 +101,11 @@ exports.NotificationOrchestrator = {
             read: false,
             dedupKey
         };
-        // Keep only last 1000
         all.unshift(notification);
-        if (all.length > 1000)
-            all.pop();
+        if (all.length > 5000)
+            all.pop(); // Increased capacity for multiple users
         database_1.LocalDatabase.set('notifications', all);
-        console.log(`[Notification | ${priority}] ${title}: ${message}`);
-        // Broadcast via WS
+        console.log(`[Notification | ${priority} | User:${userId}] ${title}: ${message}`);
         exports.notificationEmitter.emit('new_notification', notification);
-        return notification;
     }
 };

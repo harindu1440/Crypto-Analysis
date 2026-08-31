@@ -15,6 +15,50 @@ const Settings: React.FC = () => {
 
       <BinanceConnection />
 
+      <Card title="AI Intelligence Preferences">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-color)' }}>
+          <div>
+            <div style={{ fontWeight: 500 }}>Trading Experience</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Choose your experience level to tailor explanations</div>
+          </div>
+          <select 
+            style={{ padding: '8px 12px', backgroundColor: 'var(--bg-color)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '4px' }}
+            defaultValue="BEGINNER"
+          >
+            <option value="BEGINNER">Beginner - Friendly Explanations</option>
+            <option value="ADVANCED">Advanced - Technical Detail</option>
+          </select>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-color)' }}>
+          <div>
+            <div style={{ fontWeight: 500 }}>Opportunity Quality Threshold</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Only show setups above this quality score (1-100)</div>
+          </div>
+          <input 
+            type="number"
+            min="50" max="100"
+            defaultValue={75}
+            style={{ padding: '8px 12px', width: '80px', backgroundColor: 'var(--bg-color)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '4px' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' }}>
+          <div>
+            <div style={{ fontWeight: 500 }}>Preferred Trade Direction</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Filter opportunities by direction</div>
+          </div>
+          <select 
+            style={{ padding: '8px 12px', backgroundColor: 'var(--bg-color)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '4px' }}
+            defaultValue="BOTH"
+          >
+            <option value="BOTH">LONG and SHORT</option>
+            <option value="LONG">LONG Only</option>
+            <option value="SHORT">SHORT Only</option>
+          </select>
+        </div>
+      </Card>
+
       <Card title="Appearance">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-color)' }}>
           <div>
