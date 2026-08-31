@@ -17,6 +17,9 @@ export interface LocalDatabaseSchema {
   watchlists: Record<string, string[]>;
   savedOpportunities: any[];
   userPreferences: Record<string, any>;
+  historicalData: Record<string, any>; // Cache for OHLCV
+  backtests: any[];
+  backtestJobs: Record<string, any>;
 }
 
 export class LocalDatabase {
@@ -37,7 +40,10 @@ export class LocalDatabase {
     sessions: [],
     watchlists: {},
     savedOpportunities: [],
-    userPreferences: {}
+    userPreferences: {},
+    historicalData: {},
+    backtests: [],
+    backtestJobs: {}
   };
 
   public static initialize() {
@@ -65,6 +71,9 @@ export class LocalDatabase {
       if (!this.data.watchlists) this.data.watchlists = {};
       if (!this.data.savedOpportunities) this.data.savedOpportunities = [];
       if (!this.data.userPreferences) this.data.userPreferences = {};
+      if (!this.data.historicalData) this.data.historicalData = {};
+      if (!this.data.backtests) this.data.backtests = [];
+      if (!this.data.backtestJobs) this.data.backtestJobs = {};
     } catch (e) {
       console.error('Failed to load database:', e);
       this.data = { 
@@ -82,7 +91,10 @@ export class LocalDatabase {
         sessions: [],
         watchlists: {},
         savedOpportunities: [],
-        userPreferences: {}
+        userPreferences: {},
+        historicalData: {},
+        backtests: [],
+        backtestJobs: {}
       };
     }
   }

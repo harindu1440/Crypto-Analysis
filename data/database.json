@@ -1,0 +1,1006 @@
+{
+  "scheduledPlans": [],
+  "executionState": [],
+  "auditLog": [],
+  "positions": [],
+  "emergencyState": {
+    "isHalted": false
+  },
+  "dailyRiskState": {
+    "date": "2026-08-31",
+    "realizedLoss": 0
+  },
+  "monitoredAssets": [],
+  "monitoringEvents": [],
+  "opportunities": [
+    {
+      "id": "dc0c78fe-a95a-4566-b287-848283580a3e",
+      "symbol": "ETHUSDT",
+      "direction": "LONG",
+      "setup": "Mock Setup",
+      "currentPrice": 3117.3734554455436,
+      "entryZone": {
+        "min": 3114.256081990098,
+        "max": 3120.4908289009886
+      },
+      "entryPrice": 3117.3734554455436,
+      "stopLoss": 3055.0259863366327,
+      "takeProfitTargets": [
+        3258.440532303436
+      ],
+      "riskRewardRatio": 2.26259508002596,
+      "confidence": 0.9387555570924209,
+      "timeframe": "1h",
+      "higherTimeframeBias": "LONG",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 3117.3734554455436,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 70,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "7794feb9-481b-4a34-b115-6ca74c425438",
+      "version": 1,
+      "updatedAt": 1786378030782,
+      "createdAt": 1786378030782,
+      "expiresAt": 1786392430782,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "bf72dd02-8f9a-4372-bacb-c4dc4dd6722d",
+      "symbol": "ETHUSDT",
+      "direction": "LONG",
+      "setup": "Mock Setup",
+      "currentPrice": 3296.5367477209684,
+      "entryZone": {
+        "min": 3293.2402109732475,
+        "max": 3299.833284468689
+      },
+      "entryPrice": 3296.5367477209684,
+      "stopLoss": 3230.606012766549,
+      "takeProfitTargets": [
+        3467.009748413549
+      ],
+      "riskRewardRatio": 2.5856378032253966,
+      "confidence": 0.7298052785836211,
+      "timeframe": "4h",
+      "higherTimeframeBias": "LONG",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 3296.5367477209684,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 82,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "1f6d4a6a-e7ba-4061-a904-446e0de9ac35",
+      "version": 1,
+      "updatedAt": 1787476892452,
+      "createdAt": 1787476892452,
+      "expiresAt": 1787491292452,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "23a577fa-7c51-4332-9e8a-0254ad411a2f",
+      "symbol": "BTCUSDT",
+      "direction": "SHORT",
+      "setup": "Mock Setup",
+      "currentPrice": 60531.2839735569,
+      "entryZone": {
+        "min": 60470.75268958334,
+        "max": 60591.81525753045
+      },
+      "entryPrice": 60531.2839735569,
+      "stopLoss": 61741.90965302804,
+      "takeProfitTargets": [
+        58686.999473036274
+      ],
+      "riskRewardRatio": 1.5234143235143487,
+      "confidence": 0.9150858075770936,
+      "timeframe": "15m",
+      "higherTimeframeBias": "SHORT",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 60531.2839735569,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 68,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "5cde02f3-60e2-4ebf-a4a8-5a58fcc265fa",
+      "version": 1,
+      "updatedAt": 1785687411828,
+      "createdAt": 1785687411828,
+      "expiresAt": 1785701811828,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "9e9a266b-33d7-4f3f-848a-57d7ea64cf84",
+      "symbol": "ETHUSDT",
+      "direction": "SHORT",
+      "setup": "Mock Setup",
+      "currentPrice": 2655.4286708146997,
+      "entryZone": {
+        "min": 2652.773242143885,
+        "max": 2658.084099485514
+      },
+      "entryPrice": 2655.4286708146997,
+      "stopLoss": 2708.5372442309936,
+      "takeProfitTargets": [
+        2516.3644792498494
+      ],
+      "riskRewardRatio": 2.618488553152977,
+      "confidence": 0.9236726351282705,
+      "timeframe": "4h",
+      "higherTimeframeBias": "SHORT",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 2655.4286708146997,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 92,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "368011a4-e7f8-4092-b87b-afb0c558d860",
+      "version": 1,
+      "updatedAt": 1785596346239,
+      "createdAt": 1785596346239,
+      "expiresAt": 1785610746239,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "fb3711f2-3796-43ae-a520-2293785d5696",
+      "symbol": "BTCUSDT",
+      "direction": "SHORT",
+      "setup": "Mock Setup",
+      "currentPrice": 59146.75863374321,
+      "entryZone": {
+        "min": 59087.61187510946,
+        "max": 59205.905392376946
+      },
+      "entryPrice": 59146.75863374321,
+      "stopLoss": 60329.69380641807,
+      "takeProfitTargets": [
+        55251.096959314185
+      ],
+      "riskRewardRatio": 3.293216538333299,
+      "confidence": 0.840134169749127,
+      "timeframe": "4h",
+      "higherTimeframeBias": "SHORT",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 59146.75863374321,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 69,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "c678c64d-4701-4415-8e76-22434ea7b493",
+      "version": 1,
+      "updatedAt": 1787953177333,
+      "createdAt": 1787953177333,
+      "expiresAt": 1787967577333,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "e9e2b15c-789e-4169-aa47-a237c90b012a",
+      "symbol": "ETHUSDT",
+      "direction": "LONG",
+      "setup": "Mock Setup",
+      "currentPrice": 2752.628102404349,
+      "entryZone": {
+        "min": 2749.875474301945,
+        "max": 2755.380730506753
+      },
+      "entryPrice": 2752.628102404349,
+      "stopLoss": 2697.575540356262,
+      "takeProfitTargets": [
+        2855.0148106006536
+      ],
+      "riskRewardRatio": 1.8597991517065509,
+      "confidence": 0.8768487984427458,
+      "timeframe": "15m",
+      "higherTimeframeBias": "LONG",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 2752.628102404349,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 84,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "879cb541-3e4c-4039-9893-5c3b9076a13d",
+      "version": 1,
+      "updatedAt": 1786450920023,
+      "createdAt": 1786450920023,
+      "expiresAt": 1786465320023,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "f94d9fe3-d9f6-46ae-a3c0-ae2d7e390a60",
+      "symbol": "ETHUSDT",
+      "direction": "SHORT",
+      "setup": "Mock Setup",
+      "currentPrice": 3336.124907930758,
+      "entryZone": {
+        "min": 3332.7887830228274,
+        "max": 3339.4610328386884
+      },
+      "entryPrice": 3336.124907930758,
+      "stopLoss": 3402.847406089373,
+      "takeProfitTargets": [
+        3111.0280092829817
+      ],
+      "riskRewardRatio": 3.373628159315433,
+      "confidence": 0.839982336609389,
+      "timeframe": "15m",
+      "higherTimeframeBias": "SHORT",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 3336.124907930758,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 66,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "55b3a7c9-d66a-4d18-a8f4-5befac2e3d1d",
+      "version": 1,
+      "updatedAt": 1787412978783,
+      "createdAt": 1787412978783,
+      "expiresAt": 1787427378783,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "69f05178-8117-4914-84e3-bae34a76cef0",
+      "symbol": "ETHUSDT",
+      "direction": "LONG",
+      "setup": "Mock Setup",
+      "currentPrice": 2194.8912588233466,
+      "entryZone": {
+        "min": 2192.6963675645234,
+        "max": 2197.0861500821698
+      },
+      "entryPrice": 2194.8912588233466,
+      "stopLoss": 2150.9934336468796,
+      "takeProfitTargets": [
+        2274.0327895733135
+      ],
+      "riskRewardRatio": 1.8028576685023021,
+      "confidence": 0.8569174116706658,
+      "timeframe": "15m",
+      "higherTimeframeBias": "LONG",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 2194.8912588233466,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 81,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "968a67ba-72c8-4487-a709-919cdeaa3723",
+      "version": 1,
+      "updatedAt": 1786596346712,
+      "createdAt": 1786596346712,
+      "expiresAt": 1786610746712,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "9f30fc9b-81ea-4786-905a-69ce5f5cad28",
+      "symbol": "ETHUSDT",
+      "direction": "LONG",
+      "setup": "Mock Setup",
+      "currentPrice": 3172.7536682698083,
+      "entryZone": {
+        "min": 3169.5809146015386,
+        "max": 3175.9264219380775
+      },
+      "entryPrice": 3172.7536682698083,
+      "stopLoss": 3109.2985949044123,
+      "takeProfitTargets": [
+        3342.4971651851893
+      ],
+      "riskRewardRatio": 2.675018527485415,
+      "confidence": 0.9116644634831365,
+      "timeframe": "4h",
+      "higherTimeframeBias": "LONG",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 3172.7536682698083,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 82,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "3fbbbc0a-13eb-43a9-a7a8-71f8e3a49643",
+      "version": 1,
+      "updatedAt": 1787625199669,
+      "createdAt": 1787625199669,
+      "expiresAt": 1787639599669,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "5f673415-f865-4e30-a4b1-eafeddfb8a67",
+      "symbol": "ETHUSDT",
+      "direction": "SHORT",
+      "setup": "Mock Setup",
+      "currentPrice": 2604.1486161037783,
+      "entryZone": {
+        "min": 2601.5444674876744,
+        "max": 2606.7527647198817
+      },
+      "entryPrice": 2604.1486161037783,
+      "stopLoss": 2656.2315884258537,
+      "takeProfitTargets": [
+        2439.622550713423
+      ],
+      "riskRewardRatio": 3.15892235130022,
+      "confidence": 0.7578915367680311,
+      "timeframe": "15m",
+      "higherTimeframeBias": "SHORT",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 2604.1486161037783,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 74,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "9ec069e4-f2bc-48ba-ba5d-f8b30058334c",
+      "version": 1,
+      "updatedAt": 1786604415747,
+      "createdAt": 1786604415747,
+      "expiresAt": 1786618815747,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "8ce8cefc-9ed2-414e-afbb-e6ad99d12059",
+      "symbol": "ETHUSDT",
+      "direction": "LONG",
+      "setup": "Mock Setup",
+      "currentPrice": 3008.6895839064478,
+      "entryZone": {
+        "min": 3005.6808943225415,
+        "max": 3011.698273490354
+      },
+      "entryPrice": 3008.6895839064478,
+      "stopLoss": 2948.515792228319,
+      "takeProfitTargets": [
+        3146.441568853276
+      ],
+      "riskRewardRatio": 2.289235580893201,
+      "confidence": 0.9360782946524976,
+      "timeframe": "15m",
+      "higherTimeframeBias": "LONG",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 3008.6895839064478,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 88,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "278566d7-9db4-4210-9266-099039cc7a7b",
+      "version": 1,
+      "updatedAt": 1787125008713,
+      "createdAt": 1787125008713,
+      "expiresAt": 1787139408713,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "8f54a65d-5efe-42b3-ba90-0e334e5c3a4c",
+      "symbol": "BTCUSDT",
+      "direction": "SHORT",
+      "setup": "Mock Setup",
+      "currentPrice": 60357.46413256725,
+      "entryZone": {
+        "min": 60297.10666843468,
+        "max": 60417.82159669981
+      },
+      "entryPrice": 60357.46413256725,
+      "stopLoss": 61564.61341521859,
+      "takeProfitTargets": [
+        57776.26499292048
+      ],
+      "riskRewardRatio": 2.138260094872034,
+      "confidence": 0.740522004134353,
+      "timeframe": "15m",
+      "higherTimeframeBias": "SHORT",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 60357.46413256725,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 78,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "02268dad-bef0-4008-ba84-aea595873cb2",
+      "version": 1,
+      "updatedAt": 1786498960452,
+      "createdAt": 1786498960452,
+      "expiresAt": 1786513360452,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "e248116c-1103-4035-b987-b1601b27960e",
+      "symbol": "ETHUSDT",
+      "direction": "LONG",
+      "setup": "Mock Setup",
+      "currentPrice": 2838.2711308740927,
+      "entryZone": {
+        "min": 2835.4328597432186,
+        "max": 2841.1094020049663
+      },
+      "entryPrice": 2838.2711308740927,
+      "stopLoss": 2781.505708256611,
+      "takeProfitTargets": [
+        3012.629353787275
+      ],
+      "riskRewardRatio": 3.071556854039617,
+      "confidence": 0.7781238653704919,
+      "timeframe": "1h",
+      "higherTimeframeBias": "LONG",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 2838.2711308740927,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 80,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "93f2a2ec-9b15-4fc8-9e1c-74980868b25c",
+      "version": 1,
+      "updatedAt": 1785747926631,
+      "createdAt": 1785747926631,
+      "expiresAt": 1785762326631,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "d8e27ac1-da31-4be4-99c4-a26753a4262a",
+      "symbol": "BTCUSDT",
+      "direction": "LONG",
+      "setup": "Mock Setup",
+      "currentPrice": 59635.846307656146,
+      "entryZone": {
+        "min": 59576.21046134849,
+        "max": 59695.48215396379
+      },
+      "entryPrice": 59635.846307656146,
+      "stopLoss": 58443.12938150302,
+      "takeProfitTargets": [
+        62580.84643976177
+      ],
+      "riskRewardRatio": 2.469152627525923,
+      "confidence": 0.944620497230935,
+      "timeframe": "1h",
+      "higherTimeframeBias": "LONG",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 59635.846307656146,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 81,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "821d6ab5-d764-4aac-b578-382e406d860e",
+      "version": 1,
+      "updatedAt": 1787539200274,
+      "createdAt": 1787539200274,
+      "expiresAt": 1787553600274,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "92927d47-8a3e-4223-8524-e23cade4fadb",
+      "symbol": "ETHUSDT",
+      "direction": "LONG",
+      "setup": "Mock Setup",
+      "currentPrice": 2991.6528820690996,
+      "entryZone": {
+        "min": 2988.6612291870306,
+        "max": 2994.644534951168
+      },
+      "entryPrice": 2991.6528820690996,
+      "stopLoss": 2931.819824427718,
+      "takeProfitTargets": [
+        3156.49459530558
+      ],
+      "riskRewardRatio": 2.755027400145295,
+      "confidence": 0.7810641512838752,
+      "timeframe": "4h",
+      "higherTimeframeBias": "LONG",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 2991.6528820690996,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 89,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "12bcdfa0-fc9d-4c51-af56-1d0aaef17227",
+      "version": 1,
+      "updatedAt": 1785822103834,
+      "createdAt": 1785822103834,
+      "expiresAt": 1785836503834,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "7945f687-ffff-4d8e-9951-491a9e5e4899",
+      "symbol": "ETHUSDT",
+      "direction": "SHORT",
+      "setup": "Mock Setup",
+      "currentPrice": 3284.074216693107,
+      "entryZone": {
+        "min": 3280.7901424764136,
+        "max": 3287.3582909097995
+      },
+      "entryPrice": 3284.074216693107,
+      "stopLoss": 3349.755701026969,
+      "takeProfitTargets": [
+        3063.275214918044
+      ],
+      "riskRewardRatio": 3.361662788446295,
+      "confidence": 0.903433710415404,
+      "timeframe": "4h",
+      "higherTimeframeBias": "SHORT",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 3284.074216693107,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 86,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "b045e810-fe80-4090-bba5-1eaa329cd429",
+      "version": 1,
+      "updatedAt": 1787366011774,
+      "createdAt": 1787366011774,
+      "expiresAt": 1787380411774,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "8bbbe189-e21f-46a4-9e0d-f047f7f98684",
+      "symbol": "ETHUSDT",
+      "direction": "SHORT",
+      "setup": "Mock Setup",
+      "currentPrice": 2153.7568985396806,
+      "entryZone": {
+        "min": 2151.603141641141,
+        "max": 2155.91065543822
+      },
+      "entryPrice": 2153.7568985396806,
+      "stopLoss": 2196.832036510474,
+      "takeProfitTargets": [
+        2022.0082348929066
+      ],
+      "riskRewardRatio": 3.0585778677274145,
+      "confidence": 0.9254912613672968,
+      "timeframe": "4h",
+      "higherTimeframeBias": "SHORT",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 2153.7568985396806,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 82,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "deab2576-6da7-4adc-ad9e-b7a0bf1c8574",
+      "version": 1,
+      "updatedAt": 1786551577117,
+      "createdAt": 1786551577117,
+      "expiresAt": 1786565977117,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "769bbe54-ba59-4411-aa9d-20a12a97aaf2",
+      "symbol": "BTCUSDT",
+      "direction": "LONG",
+      "setup": "Mock Setup",
+      "currentPrice": 60947.27007058689,
+      "entryZone": {
+        "min": 60886.322800516304,
+        "max": 61008.21734065747
+      },
+      "entryPrice": 60947.27007058689,
+      "stopLoss": 59728.324669175156,
+      "takeProfitTargets": [
+        64528.29187535141
+      ],
+      "riskRewardRatio": 2.9378032852145046,
+      "confidence": 0.8072524241873824,
+      "timeframe": "15m",
+      "higherTimeframeBias": "LONG",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 60947.27007058689,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 74,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "6e71c50a-f961-4fd3-b2fd-33eebc881b52",
+      "version": 1,
+      "updatedAt": 1786855176315,
+      "createdAt": 1786855176315,
+      "expiresAt": 1786869576315,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "02236f3e-b915-4153-b479-41f9eeb360a9",
+      "symbol": "ETHUSDT",
+      "direction": "SHORT",
+      "setup": "Mock Setup",
+      "currentPrice": 3558.1835466898624,
+      "entryZone": {
+        "min": 3554.6253631431723,
+        "max": 3561.741730236552
+      },
+      "entryPrice": 3558.1835466898624,
+      "stopLoss": 3629.3472176236596,
+      "takeProfitTargets": [
+        3349.3757932588665
+      ],
+      "riskRewardRatio": 2.934190306529401,
+      "confidence": 0.7211712835938835,
+      "timeframe": "15m",
+      "higherTimeframeBias": "SHORT",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 3558.1835466898624,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 72,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "57fa26de-95f0-4a97-a2a2-60f8e7e2e7db",
+      "version": 1,
+      "updatedAt": 1788016591726,
+      "createdAt": 1788016591726,
+      "expiresAt": 1788030991726,
+      "status": "EXPIRED"
+    },
+    {
+      "id": "b71f5b87-4ee7-4583-a143-df10761c5d1e",
+      "symbol": "BTCUSDT",
+      "direction": "LONG",
+      "setup": "Mock Setup",
+      "currentPrice": 60780.742724756856,
+      "entryZone": {
+        "min": 60719.9619820321,
+        "max": 60841.52346748161
+      },
+      "entryPrice": 60780.742724756856,
+      "stopLoss": 59565.12787026172,
+      "takeProfitTargets": [
+        63548.48091215029
+      ],
+      "riskRewardRatio": 2.2768216241836865,
+      "confidence": 0.8180104306360992,
+      "timeframe": "1h",
+      "higherTimeframeBias": "LONG",
+      "marketStructure": "Mock Structure",
+      "technicalSummary": "Mock Summary",
+      "patternSummary": "Mock Pattern",
+      "liquiditySummary": "Mock Liquidity",
+      "sentimentSummary": "Mock Sentiment",
+      "reason": "Mock Reason",
+      "invalidationCondition": "Mock Invalidation",
+      "agents": [],
+      "timeframes": [],
+      "marketData": {
+        "price": 60780.742724756856,
+        "volatility": "VOLATILE"
+      },
+      "qualityScore": 67,
+      "qualityBreakdown": {
+        "consensus": 80,
+        "mtfAlignment": 80,
+        "technical": 80,
+        "structure": 80,
+        "riskReward": 80,
+        "dataQuality": 80
+      },
+      "rejectionReasons": [],
+      "fingerprint": "ee94bc14-d47b-4c6e-b099-7656260788ea",
+      "version": 1,
+      "updatedAt": 1786334166868,
+      "createdAt": 1786334166868,
+      "expiresAt": 1786348566868,
+      "status": "EXPIRED"
+    }
+  ],
+  "notifications": [],
+  "users": [],
+  "sessions": [],
+  "watchlists": {},
+  "savedOpportunities": [],
+  "userPreferences": {},
+  "historicalData": {},
+  "backtests": [],
+  "backtestJobs": {}
+}
