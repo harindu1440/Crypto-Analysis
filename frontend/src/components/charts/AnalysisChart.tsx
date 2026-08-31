@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { createChart, LineStyle } from 'lightweight-charts';
+import { createChart, LineStyle, CandlestickSeries } from 'lightweight-charts';
 import type { IChartApi } from 'lightweight-charts';
 import { Card } from '../common/Card';
 import './AnalysisChart.css';
@@ -45,7 +45,7 @@ export const AnalysisChart: React.FC<Props> = ({ symbol }) => {
     
     chartRef.current = chart;
 
-    const candlestickSeries = (chart as any).addCandlestickSeries({
+    const candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#26a69a',
       downColor: '#ef5350',
       borderVisible: false,
