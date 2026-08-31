@@ -114,11 +114,12 @@ app.get('/api/ai/analysis/:symbol', (req, res) => {
     }
     res.json(latest);
 });
+const geminiProvider_1 = require("./services/ai/providers/geminiProvider");
 app.get('/api/ai/status', (req, res) => {
     res.json({
-        status: 'ONLINE',
-        provider: 'mock-provider',
-        message: 'AI Multi-Agent pipeline is ready.'
+        status: geminiProvider_1.GeminiProvider.lastStatus || 'OFFLINE',
+        provider: 'gemini-provider',
+        message: geminiProvider_1.GeminiProvider.lastStatus === 'HEALTHY' ? 'AI Multi-Agent pipeline is ready.' : 'AI Service Degraded or Offline'
     });
 });
 // Phase 6 Risk Endpoints

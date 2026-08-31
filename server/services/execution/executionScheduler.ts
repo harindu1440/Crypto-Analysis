@@ -156,11 +156,26 @@ export const ExecutionScheduler = {
         }
         
         if (!state.preTradeNotificationSent) {
-          state.preTradeNotificationSent = true;
-          stateChanged = true;
-          console.log(`[Execution] TRADE EXECUTION ALERT: ${plan.symbol} ${plan.direction} executing in < 5 mins!`);
-          AlertService.log('WARNING', 'Execution', `TRADE APPROACHING: ${plan.symbol} ${plan.direction} execution in < 5 mins!`);
-          // We don't have SSE, but the frontend will poll /api/execution/upcoming and see COUNTDOWN
+          // Phase 15: Revalidate Opportunity status before sending alert
+          const opps = require('../opportunities/opportunityService').OpportunityService.getActiveOpportunities();
+          const opp = opps.find((o: any) => o.symbol === plan.symbol && o.direction === plan.direction);
+          
+          if (!opp) {
+            console.log(`[Execution] Skipping alert. Opportunity for ${plan.symbol} is INVALIDATED or missing.`);
+            state.preTradeNotificationSent = true; // Mark as sent so we don't spam
+            stateChanged = true;
+            // Optionally cancel the plan
+            this.cancelPlan(planId);
+          } else if (opp.status === 'INVALIDATED' || opp.status === 'EXPIRED') {
+            console.log(`[Execution] Opportunity ${plan.symbol} was invalidated/expired. Cancelling plan.`);
+            AlertService.log('WARNING', 'Execution', `OPPORTUNITY INVALIDATED: ${plan.symbol}. Execution cancelled.`);
+            this.cancelPlan(planId);
+          } else {
+            state.preTradeNotificationSent = true;
+            stateChanged = true;
+            console.log(`[Execution] TRADE EXECUTION ALERT: ${plan.symbol} ${plan.direction} executing in < 5 mins!`);
+            AlertService.log('WARNING', 'Execution', `TRADE APPROACHING: ${plan.symbol} ${plan.direction} execution in < 5 mins!`);
+          }
         }
       }
 

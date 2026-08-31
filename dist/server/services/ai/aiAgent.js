@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AIAgent = void 0;
+const prompts_1 = require("./prompts");
 class AIAgent {
     provider;
     constructor(provider) {
@@ -8,7 +9,7 @@ class AIAgent {
     }
     async analyzeMarketContext(data) {
         try {
-            return await this.provider.generateObject(JSON.stringify(data), 'MarketContext', 'You are a Market Context Agent. Evaluate the broader market conditions.');
+            return await this.provider.generateObject(JSON.stringify(data), 'MarketContext', `${prompts_1.PROMPTS.marketContext.description}\n${prompts_1.PROMPTS.marketContext.instructions}`);
         }
         catch (e) {
             console.error('MarketContext Agent failed:', e);
@@ -24,7 +25,7 @@ class AIAgent {
     }
     async analyzeTechnicals(data) {
         try {
-            return await this.provider.generateObject(JSON.stringify(data), 'TechnicalAnalysis', 'You are a Technical Analysis Agent. Interpret the deterministic technical indicators.');
+            return await this.provider.generateObject(JSON.stringify(data), 'TechnicalAnalysis', `${prompts_1.PROMPTS.technical.description}\n${prompts_1.PROMPTS.technical.instructions}`);
         }
         catch (e) {
             return {
@@ -39,7 +40,7 @@ class AIAgent {
     }
     async analyzePatterns(data) {
         try {
-            return await this.provider.generateObject(JSON.stringify(data), 'PatternAnalysis', 'You are a Pattern Analysis Agent. Interpret detected candlestick patterns.');
+            return await this.provider.generateObject(JSON.stringify(data), 'PatternAnalysis', `${prompts_1.PROMPTS.pattern.description}\n${prompts_1.PROMPTS.pattern.instructions}`);
         }
         catch (e) {
             return {
@@ -54,7 +55,7 @@ class AIAgent {
     }
     async analyzeLiquidity(data) {
         try {
-            return await this.provider.generateObject(JSON.stringify(data), 'LiquidityAnalysis', 'You are a Liquidity Agent. Detect liquidity zones, stop hunts, and sweeps.');
+            return await this.provider.generateObject(JSON.stringify(data), 'LiquidityAnalysis', `${prompts_1.PROMPTS.liquidity.description}\n${prompts_1.PROMPTS.liquidity.instructions}`);
         }
         catch (e) {
             return {
@@ -68,7 +69,7 @@ class AIAgent {
     }
     async analyzeSentiment(data) {
         try {
-            return await this.provider.generateObject(JSON.stringify(data), 'SentimentAnalysis', 'You are a Sentiment/News Agent. Analyze market regime and broad sentiment based on price action.');
+            return await this.provider.generateObject(JSON.stringify(data), 'SentimentAnalysis', `${prompts_1.PROMPTS.sentiment.description}\n${prompts_1.PROMPTS.sentiment.instructions}`);
         }
         catch (e) {
             return {
@@ -82,7 +83,7 @@ class AIAgent {
     }
     async analyzeTimeframes(data) {
         try {
-            return await this.provider.generateObject(JSON.stringify(data), 'TimeframeAnalysis', 'You are a Multi-Timeframe Agent. Compare timeframes for alignment or conflict.');
+            return await this.provider.generateObject(JSON.stringify(data), 'TimeframeAnalysis', `${prompts_1.PROMPTS.timeframe.description}\n${prompts_1.PROMPTS.timeframe.instructions}`);
         }
         catch (e) {
             return {
@@ -97,7 +98,7 @@ class AIAgent {
     }
     async analyzeRisk(data, otherAnalysis) {
         try {
-            return await this.provider.generateObject(JSON.stringify({ data, otherAnalysis }), 'RiskAnalysis', 'You are a Risk Analysis Agent. Evaluate if the setup has acceptable market conditions.');
+            return await this.provider.generateObject(JSON.stringify({ data, otherAnalysis }), 'RiskAnalysis', `${prompts_1.PROMPTS.risk.description}\n${prompts_1.PROMPTS.risk.instructions}`);
         }
         catch (e) {
             return {
@@ -111,7 +112,7 @@ class AIAgent {
     }
     async makeMasterDecision(data, agentResults) {
         try {
-            return await this.provider.generateObject(JSON.stringify({ data, agentResults }), 'MasterDecision', 'You are the Master Decision Agent. Analyze specialist inputs. Prefer NO_TRADE if uncertainty exists.');
+            return await this.provider.generateObject(JSON.stringify({ data, agentResults }), 'MasterDecision', `${prompts_1.PROMPTS.master.description}\n${prompts_1.PROMPTS.master.instructions}`);
         }
         catch (e) {
             return {

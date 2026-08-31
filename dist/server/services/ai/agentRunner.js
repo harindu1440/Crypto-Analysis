@@ -5,12 +5,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AgentRunner = void 0;
 const aiAgent_1 = require("./aiAgent");
-const mockProvider_1 = require("./providers/mockProvider");
+const geminiProvider_1 = require("./providers/geminiProvider");
 const analysisService_1 = require("../analysis/analysisService");
 const opportunityService_1 = require("../opportunities/opportunityService");
+const signalQualityService_1 = require("./signalQualityService");
 const crypto_1 = __importDefault(require("crypto"));
-// In a real app we'd load the correct provider via env. For now we use the mock.
-const provider = new mockProvider_1.MockProvider();
+const provider = new geminiProvider_1.GeminiProvider();
 const agent = new aiAgent_1.AIAgent(provider);
 // In-memory lock to prevent duplicate concurrent analysis
 const activeAnalysisLocks = new Set();
@@ -74,8 +74,47 @@ exports.AgentRunner = {
             console.log(`[AgentRunner] Completed AI analysis for ${symbol}. Decision: ${finalResult.decision}`);
             // Save to memory
             latestAnalysisResults.set(symbol, finalResult);
-            // Phase 12: Generate Global Trade Opportunity if valid
-            if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate && maxScore >= 3) {
+            // Deterministic Validation & R:R recalculation
+            if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate) {
+                let valid = true;
+                const c = finalResult.tradeCandidate;
+                const entryPrice = (c.entryZone.min + c.entryZone.max) / 2;
+                if (c.side === 'LONG') {
+                    if (c.stopLoss >= entryPrice)
+                        valid = false;
+                    c.takeProfitLevels.forEach(tp => { if (tp <= entryPrice)
+                        valid = false; });
+                }
+                else {
+                    if (c.stopLoss <= entryPrice)
+                        valid = false;
+                    c.takeProfitLevels.forEach(tp => { if (tp >= entryPrice)
+                        valid = false; });
+                }
+                if (valid) {
+                    const risk = Math.abs(entryPrice - c.stopLoss);
+                    const reward = Math.abs(c.takeProfitLevels[0] - entryPrice);
+                    c.riskRewardRatio = risk > 0 ? parseFloat((reward / risk).toFixed(2)) : 0;
+                    if (c.riskRewardRatio < 1.0)
+                        valid = false; // Reject poor R:R
+                }
+                if (!valid) {
+                    finalResult.decision = 'NO_TRADE';
+                    finalResult.reasoning = 'Deterministically rejected by Risk validation engine. ' + finalResult.reasoning;
+                    finalResult.tradeCandidate = null;
+                }
+            }
+            // Phase 15: AI Signal Quality & Validation
+            const qualityEval = signalQualityService_1.SignalQualityService.evaluateOpportunity(finalResult, data);
+            if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate) {
+                if (!qualityEval.isQualified) {
+                    finalResult.decision = 'NO_TRADE';
+                    finalResult.reasoning = `Quality Engine Rejected: ${qualityEval.rejectionReasons.join(', ')} | ` + finalResult.reasoning;
+                    finalResult.tradeCandidate = null;
+                }
+            }
+            // Phase 12 & 15: Generate Global Trade Opportunity if valid & qualified
+            if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate && qualityEval.isQualified) {
                 const c = finalResult.tradeCandidate;
                 const opp = {
                     id: crypto_1.default.randomUUID(),
@@ -117,9 +156,15 @@ exports.AgentRunner = {
                         change24h: data.market.change24h,
                         volatility: data.timeframes['1h']?.volatility.level || 'MEDIUM'
                     },
+                    qualityScore: qualityEval.score,
+                    qualityBreakdown: qualityEval.breakdown,
+                    rejectionReasons: qualityEval.rejectionReasons,
+                    fingerprint: `${symbol}-${c.side}-${c.timeframe}-${qualityEval.marketRegime}`,
+                    version: 1,
+                    updatedAt: Date.now(),
                     createdAt: Date.now(),
                     expiresAt: Date.now() + (6 * 60 * 60 * 1000), // 6 hours
-                    status: 'DETECTED'
+                    status: 'QUALIFIED'
                 };
                 opportunityService_1.OpportunityService.addOpportunity(opp);
             }

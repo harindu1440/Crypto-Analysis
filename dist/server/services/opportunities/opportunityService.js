@@ -12,21 +12,28 @@ exports.OpportunityService = {
     },
     addOpportunity(opportunity) {
         const opps = this.getOpportunities();
-        // Deduplication logic based on symbol, direction, and timeframe
-        const existing = opps.find(o => o.symbol === opportunity.symbol &&
-            o.direction === opportunity.direction &&
-            o.timeframe === opportunity.timeframe &&
-            ['DETECTED', 'VALIDATED', 'ACTIVE'].includes(o.status));
-        if (existing) {
+        // Phase 15: Deduplication logic based on fingerprint
+        const existingIndex = opps.findIndex(o => o.fingerprint === opportunity.fingerprint &&
+            ['DETECTED', 'ANALYZING', 'VALIDATING', 'QUALIFIED', 'ACTIVE', 'APPROACHING_ENTRY'].includes(o.status));
+        if (existingIndex !== -1) {
+            const existing = opps[existingIndex];
             // Update existing instead of spamming
-            Object.assign(existing, opportunity, { id: existing.id, createdAt: existing.createdAt });
+            const updatedOpp = {
+                ...existing,
+                ...opportunity,
+                id: existing.id,
+                createdAt: existing.createdAt,
+                version: (existing.version || 1) + 1,
+                updatedAt: Date.now()
+            };
+            opps[existingIndex] = updatedOpp;
             database_1.LocalDatabase.set('opportunities', opps);
-            console.log(`[Opportunity] Updated existing opportunity for ${opportunity.symbol}`);
-            return existing;
+            console.log(`[Opportunity] Updated existing opportunity for ${opportunity.symbol} (v${updatedOpp.version})`);
+            return updatedOpp;
         }
         opps.unshift(opportunity);
         database_1.LocalDatabase.set('opportunities', opps);
-        alertService_1.AlertService.log('INFO', 'Opportunity', `New Trade Opportunity: ${opportunity.symbol} ${opportunity.direction}`);
+        alertService_1.AlertService.log('INFO', 'Opportunity', `New Qualified Trade Opportunity: ${opportunity.symbol} ${opportunity.direction} (Score: ${opportunity.qualityScore})`);
         return opportunity;
     },
     updateStatus(id, status, reason) {

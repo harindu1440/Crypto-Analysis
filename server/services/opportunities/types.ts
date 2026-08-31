@@ -2,12 +2,17 @@ import { TradeSide } from '../ai/schemas/types';
 
 export type OpportunityStatus = 
   | 'DETECTED'
-  | 'VALIDATED'
+  | 'ANALYZING'
+  | 'VALIDATING'
+  | 'QUALIFIED'
   | 'ACTIVE'
   | 'APPROACHING_ENTRY'
   | 'TRIGGERED'
+  | 'EXECUTED'
+  | 'REJECTED'
   | 'EXPIRED'
   | 'INVALIDATED'
+  | 'CANCELLED'
   | 'COMPLETED';
 
 export interface TradeOpportunity {
@@ -50,6 +55,21 @@ export interface TradeOpportunity {
     change24h?: number;
     volatility?: string;
   };
+  
+  // Phase 15 Additions
+  qualityScore: number;
+  qualityBreakdown: {
+    consensus: number;
+    mtfAlignment: number;
+    technical: number;
+    structure: number;
+    riskReward: number;
+    dataQuality: number;
+  };
+  rejectionReasons: string[];
+  fingerprint: string;
+  version: number;
+  updatedAt: number;
   
   createdAt: number;
   expiresAt: number;

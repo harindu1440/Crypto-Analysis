@@ -1,10 +1,12 @@
 import { MonitoredAsset, AssetMonitorState, MonitoringEvent } from './types';
 import { binanceWS } from '../binance/binanceWebSocketService';
+import { LocalDatabase } from '../../config/database';
 import { AgentRunner } from '../ai/agentRunner';
 import { RiskEngine } from '../risk/riskEngine';
 import { ExecutionScheduler } from '../execution/executionScheduler';
 import { DEFAULT_RISK_SETTINGS } from '../risk/riskConfig';
 import { AnalysisService } from '../analysis/analysisService';
+import { OpportunityTracker } from './opportunityTracker';
 import crypto from 'crypto';
 
 class MonitoringOrchestrator {
@@ -41,6 +43,9 @@ class MonitoringOrchestrator {
     if (symbolsToSub.length > 0) {
       binanceWS.subscribe(symbolsToSub);
     }
+    
+    // Start active opportunity lifecycle tracker
+    OpportunityTracker.start();
   }
 
   public stop() {
@@ -48,6 +53,8 @@ class MonitoringOrchestrator {
     this.isRunning = false;
     this.logEvent('SYSTEM', 'Monitor stopped', 'WARNING');
     binanceWS.unsubscribe(Array.from(this.assets.keys()));
+    
+    OpportunityTracker.stop();
   }
 
   public getStatus() {

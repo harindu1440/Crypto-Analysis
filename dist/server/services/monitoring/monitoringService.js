@@ -10,6 +10,7 @@ const riskEngine_1 = require("../risk/riskEngine");
 const executionScheduler_1 = require("../execution/executionScheduler");
 const riskConfig_1 = require("../risk/riskConfig");
 const analysisService_1 = require("../analysis/analysisService");
+const opportunityTracker_1 = require("./opportunityTracker");
 const crypto_1 = __importDefault(require("crypto"));
 class MonitoringOrchestrator {
     isRunning = false;
@@ -40,6 +41,8 @@ class MonitoringOrchestrator {
         if (symbolsToSub.length > 0) {
             binanceWebSocketService_1.binanceWS.subscribe(symbolsToSub);
         }
+        // Start active opportunity lifecycle tracker
+        opportunityTracker_1.OpportunityTracker.start();
     }
     stop() {
         if (!this.isRunning)
@@ -47,6 +50,7 @@ class MonitoringOrchestrator {
         this.isRunning = false;
         this.logEvent('SYSTEM', 'Monitor stopped', 'WARNING');
         binanceWebSocketService_1.binanceWS.unsubscribe(Array.from(this.assets.keys()));
+        opportunityTracker_1.OpportunityTracker.stop();
     }
     getStatus() {
         return {

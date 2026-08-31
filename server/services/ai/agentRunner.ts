@@ -4,6 +4,7 @@ import { AnalysisService } from '../analysis/analysisService';
 import { MasterDecisionOutput, TradeSide } from './schemas/types';
 import { OpportunityService } from '../opportunities/opportunityService';
 import { TradeOpportunity } from '../opportunities/types';
+import { SignalQualityService } from './signalQualityService';
 import crypto from 'crypto';
 
 const provider = new GeminiProvider();
@@ -116,8 +117,19 @@ export const AgentRunner = {
         }
       }
 
-      // Phase 12: Generate Global Trade Opportunity if valid
-      if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate && maxScore >= 3) {
+      // Phase 15: AI Signal Quality & Validation
+      const qualityEval = SignalQualityService.evaluateOpportunity(finalResult, data);
+
+      if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate) {
+        if (!qualityEval.isQualified) {
+          finalResult.decision = 'NO_TRADE';
+          finalResult.reasoning = `Quality Engine Rejected: ${qualityEval.rejectionReasons.join(', ')} | ` + finalResult.reasoning;
+          finalResult.tradeCandidate = null;
+        }
+      }
+
+      // Phase 12 & 15: Generate Global Trade Opportunity if valid & qualified
+      if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate && qualityEval.isQualified) {
         const c = finalResult.tradeCandidate;
         const opp: TradeOpportunity = {
           id: crypto.randomUUID(),
@@ -161,9 +173,16 @@ export const AgentRunner = {
             volatility: data.timeframes['1h']?.volatility.level || 'MEDIUM'
           },
 
+          qualityScore: qualityEval.score,
+          qualityBreakdown: qualityEval.breakdown,
+          rejectionReasons: qualityEval.rejectionReasons,
+          fingerprint: `${symbol}-${c.side}-${c.timeframe}-${qualityEval.marketRegime}`,
+          version: 1,
+          updatedAt: Date.now(),
+          
           createdAt: Date.now(),
           expiresAt: Date.now() + (6 * 60 * 60 * 1000), // 6 hours
-          status: 'DETECTED'
+          status: 'QUALIFIED'
         };
         OpportunityService.addOpportunity(opp);
       }

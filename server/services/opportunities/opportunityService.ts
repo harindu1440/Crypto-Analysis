@@ -16,26 +16,34 @@ export const OpportunityService = {
   addOpportunity(opportunity: TradeOpportunity) {
     const opps = this.getOpportunities();
     
-    // Deduplication logic based on symbol, direction, and timeframe
-    const existing = opps.find(o => 
-      o.symbol === opportunity.symbol && 
-      o.direction === opportunity.direction &&
-      o.timeframe === opportunity.timeframe &&
-      ['DETECTED', 'VALIDATED', 'ACTIVE'].includes(o.status)
+    // Phase 15: Deduplication logic based on fingerprint
+    const existingIndex = opps.findIndex(o => 
+      o.fingerprint === opportunity.fingerprint &&
+      ['DETECTED', 'ANALYZING', 'VALIDATING', 'QUALIFIED', 'ACTIVE', 'APPROACHING_ENTRY'].includes(o.status)
     );
 
-    if (existing) {
+    if (existingIndex !== -1) {
+      const existing = opps[existingIndex];
       // Update existing instead of spamming
-      Object.assign(existing, opportunity, { id: existing.id, createdAt: existing.createdAt });
+      const updatedOpp: TradeOpportunity = {
+        ...existing,
+        ...opportunity,
+        id: existing.id, 
+        createdAt: existing.createdAt,
+        version: (existing.version || 1) + 1,
+        updatedAt: Date.now()
+      };
+      
+      opps[existingIndex] = updatedOpp;
       LocalDatabase.set('opportunities', opps);
-      console.log(`[Opportunity] Updated existing opportunity for ${opportunity.symbol}`);
-      return existing;
+      console.log(`[Opportunity] Updated existing opportunity for ${opportunity.symbol} (v${updatedOpp.version})`);
+      return updatedOpp;
     }
 
     opps.unshift(opportunity);
     LocalDatabase.set('opportunities', opps);
     
-    AlertService.log('INFO', 'Opportunity', `New Trade Opportunity: ${opportunity.symbol} ${opportunity.direction}`);
+    AlertService.log('INFO', 'Opportunity', `New Qualified Trade Opportunity: ${opportunity.symbol} ${opportunity.direction} (Score: ${opportunity.qualityScore})`);
     
     return opportunity;
   },
