@@ -164,17 +164,26 @@ export const ExecutionScheduler = {
             console.log(`[Execution] Skipping alert. Opportunity for ${plan.symbol} is INVALIDATED or missing.`);
             state.preTradeNotificationSent = true; // Mark as sent so we don't spam
             stateChanged = true;
-            // Optionally cancel the plan
             this.cancelPlan(planId);
           } else if (opp.status === 'INVALIDATED' || opp.status === 'EXPIRED') {
             console.log(`[Execution] Opportunity ${plan.symbol} was invalidated/expired. Cancelling plan.`);
-            AlertService.log('WARNING', 'Execution', `OPPORTUNITY INVALIDATED: ${plan.symbol}. Execution cancelled.`);
+            require('../notifications/notificationOrchestrator').NotificationOrchestrator.dispatch(
+              'INVALIDATED', 'MEDIUM',
+              `Execution Cancelled: ${plan.symbol}`,
+              `The opportunity was invalidated before execution.`,
+              opp
+            );
             this.cancelPlan(planId);
           } else {
             state.preTradeNotificationSent = true;
             stateChanged = true;
             console.log(`[Execution] TRADE EXECUTION ALERT: ${plan.symbol} ${plan.direction} executing in < 5 mins!`);
-            AlertService.log('WARNING', 'Execution', `TRADE APPROACHING: ${plan.symbol} ${plan.direction} execution in < 5 mins!`);
+            require('../notifications/notificationOrchestrator').NotificationOrchestrator.dispatch(
+              'FIVE_MINUTE_WARNING', 'HIGH',
+              `Trade Approaching: ${plan.symbol}`,
+              `${plan.direction} execution in < 5 mins! Ensure your account is ready.`,
+              opp
+            );
           }
         }
       }

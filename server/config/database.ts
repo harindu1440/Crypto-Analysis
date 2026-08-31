@@ -11,6 +11,7 @@ export interface LocalDatabaseSchema {
   monitoredAssets: any[];
   monitoringEvents: any[];
   opportunities: any[];
+  notifications: any[];
 }
 
 export class LocalDatabase {
@@ -25,7 +26,8 @@ export class LocalDatabase {
     dailyRiskState: { date: new Date().toISOString().split('T')[0], realizedLoss: 0 },
     monitoredAssets: [],
     monitoringEvents: [],
-    opportunities: []
+    opportunities: [],
+    notifications: []
   };
 
   public static initialize() {
@@ -59,7 +61,8 @@ export class LocalDatabase {
         dailyRiskState: { date: new Date().toISOString().split('T')[0], realizedLoss: 0 },
         monitoredAssets: [],
         monitoringEvents: [],
-        opportunities: []
+        opportunities: [],
+        notifications: []
       };
     }
   }

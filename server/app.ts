@@ -260,20 +260,16 @@ app.post('/api/trading/emergency-stop', (req, res) => {
   res.json({ isHalted: PositionManager.isEmergencyStopped() });
 });
 
-// Phase 8 Monitoring Endpoints
-import { MonitoringService } from './services/monitoring/monitoringService';
+// Phase 8 & 16 Monitoring Endpoints
+import { GlobalMonitoringService } from './services/monitoring/globalMonitoringService';
 
 app.get('/api/monitoring/status', (req, res) => {
-  res.json(MonitoringService.getStatus());
+  res.json(GlobalMonitoringService.getStatus());
 });
 
-app.post('/api/monitoring/assets', (req, res) => {
+app.post('/api/monitoring/assets/:symbol', (req, res) => {
   try {
-    const { symbol } = req.body;
-    if (!symbol || typeof symbol !== 'string') {
-      return res.status(400).json({ error: 'Valid symbol required' });
-    }
-    MonitoringService.addAsset(symbol);
+    GlobalMonitoringService.addAsset(req.params.symbol);
     res.json({ message: 'Asset added successfully' });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -281,17 +277,13 @@ app.post('/api/monitoring/assets', (req, res) => {
 });
 
 app.delete('/api/monitoring/assets/:symbol', (req, res) => {
-  try {
-    MonitoringService.removeAsset(req.params.symbol);
-    res.json({ message: 'Asset removed successfully' });
-  } catch (error: any) {
-    res.status(400).json({ error: error.message });
-  }
+  GlobalMonitoringService.removeAsset(req.params.symbol);
+  res.json({ message: 'Asset removed successfully' });
 });
 
 app.post('/api/monitoring/assets/:symbol/enable', (req, res) => {
   try {
-    MonitoringService.setAssetStatus(req.params.symbol, true);
+    GlobalMonitoringService.setAssetStatus(req.params.symbol, true);
     res.json({ message: 'Asset enabled' });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -300,7 +292,7 @@ app.post('/api/monitoring/assets/:symbol/enable', (req, res) => {
 
 app.post('/api/monitoring/assets/:symbol/disable', (req, res) => {
   try {
-    MonitoringService.setAssetStatus(req.params.symbol, false);
+    GlobalMonitoringService.setAssetStatus(req.params.symbol, false);
     res.json({ message: 'Asset disabled' });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -308,17 +300,30 @@ app.post('/api/monitoring/assets/:symbol/disable', (req, res) => {
 });
 
 app.post('/api/monitoring/start', (req, res) => {
-  MonitoringService.start();
+  GlobalMonitoringService.start();
   res.json({ message: 'Monitoring started' });
 });
 
 app.post('/api/monitoring/stop', (req, res) => {
-  MonitoringService.stop();
+  GlobalMonitoringService.stop();
   res.json({ message: 'Monitoring stopped' });
 });
 
-app.get('/api/monitoring/events', (req, res) => {
-  res.json(MonitoringService.getEvents());
+// Phase 16: Notifications API
+import { NotificationOrchestrator } from './services/notifications/notificationOrchestrator';
+
+app.get('/api/notifications', (req, res) => {
+  res.json(NotificationOrchestrator.getNotifications());
+});
+
+app.post('/api/notifications/read/:id', (req, res) => {
+  NotificationOrchestrator.markAsRead(req.params.id);
+  res.json({ success: true });
+});
+
+app.post('/api/notifications/read-all', (req, res) => {
+  NotificationOrchestrator.markAllAsRead();
+  res.json({ success: true });
 });
 
 // Phase 9 Account Endpoints
@@ -374,10 +379,15 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
-// Error handling middleware
+// Initialize core systems
+if (process.env.NODE_ENV !== 'test') {
+  GlobalMonitoringService.start(); // This replaces MonitoringService.start()
+}
+
+// Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err.stack);
-  res.status(500).json({ error: 'Internal Server Error' });
+  res.status(500).json({ error: err.message || 'Something broke!' });
 });
 
 export { app };

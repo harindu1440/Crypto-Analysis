@@ -37,13 +37,26 @@ export const OpportunityService = {
       opps[existingIndex] = updatedOpp;
       LocalDatabase.set('opportunities', opps);
       console.log(`[Opportunity] Updated existing opportunity for ${opportunity.symbol} (v${updatedOpp.version})`);
+      
+      require('../notifications/notificationOrchestrator').NotificationOrchestrator.dispatch(
+        'UPDATED', 'INFO',
+        `Opportunity Updated: ${updatedOpp.symbol}`,
+        `The AI analysis for ${updatedOpp.symbol} has been updated. Score: ${updatedOpp.qualityScore}`,
+        updatedOpp
+      );
+      
       return updatedOpp;
     }
 
     opps.unshift(opportunity);
     LocalDatabase.set('opportunities', opps);
     
-    AlertService.log('INFO', 'Opportunity', `New Qualified Trade Opportunity: ${opportunity.symbol} ${opportunity.direction} (Score: ${opportunity.qualityScore})`);
+    require('../notifications/notificationOrchestrator').NotificationOrchestrator.dispatch(
+      'NEW_OPPORTUNITY', 'HIGH',
+      `New Opportunity: ${opportunity.symbol} ${opportunity.direction}`,
+      `A new high-quality setup was detected. Score: ${opportunity.qualityScore}`,
+      opportunity
+    );
     
     return opportunity;
   },

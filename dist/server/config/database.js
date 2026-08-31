@@ -18,7 +18,8 @@ class LocalDatabase {
         dailyRiskState: { date: new Date().toISOString().split('T')[0], realizedLoss: 0 },
         monitoredAssets: [],
         monitoringEvents: [],
-        opportunities: []
+        opportunities: [],
+        notifications: []
     };
     static initialize() {
         const dir = path_1.default.dirname(this.filePath);
@@ -55,7 +56,8 @@ class LocalDatabase {
                 dailyRiskState: { date: new Date().toISOString().split('T')[0], realizedLoss: 0 },
                 monitoredAssets: [],
                 monitoringEvents: [],
-                opportunities: []
+                opportunities: [],
+                notifications: []
             };
         }
     }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useBackendStatus } from '../../hooks/useBackendStatus';
 import { StatusBadge } from '../common/StatusBadge';
+import { NotificationCenter } from '../system/NotificationCenter';
 
 export const Header: React.FC = () => {
   const backendStatus = useBackendStatus();
@@ -21,6 +22,7 @@ export const Header: React.FC = () => {
       
       <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
         <StatusBadge status={backendStatus} />
+        <NotificationCenter />
       </div>
     </header>
   );

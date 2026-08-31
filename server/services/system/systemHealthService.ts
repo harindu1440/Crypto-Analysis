@@ -1,7 +1,7 @@
 import { LocalDatabase } from '../../config/database';
 import { BinanceMarketService } from '../binance/binanceMarketService';
 import { AccountSyncService } from '../account/accountSyncService';
-import { MonitoringService } from '../monitoring/monitoringService';
+import { GlobalMonitoringService } from '../monitoring/globalMonitoringService';
 import { AlertService } from './alertService';
 import { GeminiProvider } from '../ai/providers/geminiProvider';
 import { OpportunityService } from '../opportunities/opportunityService';
@@ -44,7 +44,7 @@ export const SystemHealthService = {
     }
 
     // 4. Monitoring Engine
-    const monStatus = MonitoringService.getStatus();
+    const monStatus = GlobalMonitoringService.getStatus();
     if (!monStatus.running) {
       health.monitoring = 'OFFLINE';
       if (process.env.AUTO_MONITORING !== 'false') {

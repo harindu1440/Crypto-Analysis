@@ -235,18 +235,14 @@ app.post('/api/trading/emergency-stop', (req, res) => {
     positionManager_1.PositionManager.setEmergencyStop(halted === true);
     res.json({ isHalted: positionManager_1.PositionManager.isEmergencyStopped() });
 });
-// Phase 8 Monitoring Endpoints
-const monitoringService_1 = require("./services/monitoring/monitoringService");
+// Phase 8 & 16 Monitoring Endpoints
+const globalMonitoringService_1 = require("./services/monitoring/globalMonitoringService");
 app.get('/api/monitoring/status', (req, res) => {
-    res.json(monitoringService_1.MonitoringService.getStatus());
+    res.json(globalMonitoringService_1.GlobalMonitoringService.getStatus());
 });
-app.post('/api/monitoring/assets', (req, res) => {
+app.post('/api/monitoring/assets/:symbol', (req, res) => {
     try {
-        const { symbol } = req.body;
-        if (!symbol || typeof symbol !== 'string') {
-            return res.status(400).json({ error: 'Valid symbol required' });
-        }
-        monitoringService_1.MonitoringService.addAsset(symbol);
+        globalMonitoringService_1.GlobalMonitoringService.addAsset(req.params.symbol);
         res.json({ message: 'Asset added successfully' });
     }
     catch (error) {
@@ -254,17 +250,12 @@ app.post('/api/monitoring/assets', (req, res) => {
     }
 });
 app.delete('/api/monitoring/assets/:symbol', (req, res) => {
-    try {
-        monitoringService_1.MonitoringService.removeAsset(req.params.symbol);
-        res.json({ message: 'Asset removed successfully' });
-    }
-    catch (error) {
-        res.status(400).json({ error: error.message });
-    }
+    globalMonitoringService_1.GlobalMonitoringService.removeAsset(req.params.symbol);
+    res.json({ message: 'Asset removed successfully' });
 });
 app.post('/api/monitoring/assets/:symbol/enable', (req, res) => {
     try {
-        monitoringService_1.MonitoringService.setAssetStatus(req.params.symbol, true);
+        globalMonitoringService_1.GlobalMonitoringService.setAssetStatus(req.params.symbol, true);
         res.json({ message: 'Asset enabled' });
     }
     catch (error) {
@@ -273,7 +264,7 @@ app.post('/api/monitoring/assets/:symbol/enable', (req, res) => {
 });
 app.post('/api/monitoring/assets/:symbol/disable', (req, res) => {
     try {
-        monitoringService_1.MonitoringService.setAssetStatus(req.params.symbol, false);
+        globalMonitoringService_1.GlobalMonitoringService.setAssetStatus(req.params.symbol, false);
         res.json({ message: 'Asset disabled' });
     }
     catch (error) {
@@ -281,15 +272,25 @@ app.post('/api/monitoring/assets/:symbol/disable', (req, res) => {
     }
 });
 app.post('/api/monitoring/start', (req, res) => {
-    monitoringService_1.MonitoringService.start();
+    globalMonitoringService_1.GlobalMonitoringService.start();
     res.json({ message: 'Monitoring started' });
 });
 app.post('/api/monitoring/stop', (req, res) => {
-    monitoringService_1.MonitoringService.stop();
+    globalMonitoringService_1.GlobalMonitoringService.stop();
     res.json({ message: 'Monitoring stopped' });
 });
-app.get('/api/monitoring/events', (req, res) => {
-    res.json(monitoringService_1.MonitoringService.getEvents());
+// Phase 16: Notifications API
+const notificationOrchestrator_1 = require("./services/notifications/notificationOrchestrator");
+app.get('/api/notifications', (req, res) => {
+    res.json(notificationOrchestrator_1.NotificationOrchestrator.getNotifications());
+});
+app.post('/api/notifications/read/:id', (req, res) => {
+    notificationOrchestrator_1.NotificationOrchestrator.markAsRead(req.params.id);
+    res.json({ success: true });
+});
+app.post('/api/notifications/read-all', (req, res) => {
+    notificationOrchestrator_1.NotificationOrchestrator.markAllAsRead();
+    res.json({ success: true });
 });
 // Phase 9 Account Endpoints
 const accountSyncService_1 = require("./services/account/accountSyncService");
@@ -337,8 +338,12 @@ app.use(express_1.default.static(frontendPath));
 app.get('*', (req, res) => {
     res.sendFile(path_1.default.join(frontendPath, 'index.html'));
 });
-// Error handling middleware
+// Initialize core systems
+if (process.env.NODE_ENV !== 'test') {
+    globalMonitoringService_1.GlobalMonitoringService.start(); // This replaces MonitoringService.start()
+}
+// Global Error Handler
 app.use((err, req, res, next) => {
     console.error(err.stack);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ error: err.message || 'Something broke!' });
 });

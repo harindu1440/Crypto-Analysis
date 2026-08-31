@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OpportunityService = void 0;
 const database_1 = require("../../config/database");
-const alertService_1 = require("../system/alertService");
 exports.OpportunityService = {
     getOpportunities() {
         return database_1.LocalDatabase.get('opportunities') || [];
@@ -29,11 +28,12 @@ exports.OpportunityService = {
             opps[existingIndex] = updatedOpp;
             database_1.LocalDatabase.set('opportunities', opps);
             console.log(`[Opportunity] Updated existing opportunity for ${opportunity.symbol} (v${updatedOpp.version})`);
+            require('../notifications/notificationOrchestrator').NotificationOrchestrator.dispatch('UPDATED', 'INFO', `Opportunity Updated: ${updatedOpp.symbol}`, `The AI analysis for ${updatedOpp.symbol} has been updated. Score: ${updatedOpp.qualityScore}`, updatedOpp);
             return updatedOpp;
         }
         opps.unshift(opportunity);
         database_1.LocalDatabase.set('opportunities', opps);
-        alertService_1.AlertService.log('INFO', 'Opportunity', `New Qualified Trade Opportunity: ${opportunity.symbol} ${opportunity.direction} (Score: ${opportunity.qualityScore})`);
+        require('../notifications/notificationOrchestrator').NotificationOrchestrator.dispatch('NEW_OPPORTUNITY', 'HIGH', `New Opportunity: ${opportunity.symbol} ${opportunity.direction}`, `A new high-quality setup was detected. Score: ${opportunity.qualityScore}`, opportunity);
         return opportunity;
     },
     updateStatus(id, status, reason) {

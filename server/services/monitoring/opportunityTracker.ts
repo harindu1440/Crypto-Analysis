@@ -1,6 +1,6 @@
 import { OpportunityService } from '../opportunities/opportunityService';
 import { BinanceMarketService } from '../binance/binanceMarketService';
-import { AlertService } from '../system/alertService';
+import { NotificationOrchestrator } from '../notifications/notificationOrchestrator';
 
 export const OpportunityTracker = {
   timer: null as NodeJS.Timeout | null,
@@ -32,19 +32,34 @@ export const OpportunityTracker = {
         // 1. Check Expiration
         if (Date.now() > opp.expiresAt) {
           OpportunityService.updateStatus(opp.id, 'EXPIRED', 'Opportunity time expired.');
-          AlertService.log('INFO', 'OpportunityTracker', `Opportunity ${opp.symbol} expired.`);
+          NotificationOrchestrator.dispatch(
+            'EXPIRED', 'LOW', 
+            `Opportunity Expired: ${opp.symbol}`, 
+            `The opportunity has exceeded its timeframe.`, 
+            opp
+          );
           continue;
         }
 
         // 2. Check Invalidation (Stop Loss hit before Entry)
         if (opp.direction === 'LONG' && currentPrice <= opp.stopLoss) {
           OpportunityService.updateStatus(opp.id, 'INVALIDATED', 'Price dropped below Stop Loss before entry.');
-          AlertService.log('WARNING', 'OpportunityTracker', `Opportunity ${opp.symbol} invalidated (Hit SL).`);
+          NotificationOrchestrator.dispatch(
+            'INVALIDATED', 'MEDIUM', 
+            `Opportunity Invalidated: ${opp.symbol}`, 
+            `Price broke the stop loss level before hitting the entry zone.`, 
+            opp
+          );
           continue;
         }
         if (opp.direction === 'SHORT' && currentPrice >= opp.stopLoss) {
           OpportunityService.updateStatus(opp.id, 'INVALIDATED', 'Price rose above Stop Loss before entry.');
-          AlertService.log('WARNING', 'OpportunityTracker', `Opportunity ${opp.symbol} invalidated (Hit SL).`);
+          NotificationOrchestrator.dispatch(
+            'INVALIDATED', 'MEDIUM', 
+            `Opportunity Invalidated: ${opp.symbol}`, 
+            `Price broke the stop loss level before hitting the entry zone.`, 
+            opp
+          );
           continue;
         }
 
@@ -63,7 +78,12 @@ export const OpportunityTracker = {
 
         if (isApproaching && opp.status !== 'APPROACHING_ENTRY') {
            OpportunityService.updateStatus(opp.id, 'APPROACHING_ENTRY');
-           AlertService.log('INFO', 'OpportunityTracker', `${opp.symbol} is approaching entry zone!`);
+           NotificationOrchestrator.dispatch(
+             'APPROACHING_ENTRY', 'HIGH',
+             `Entry Approaching: ${opp.symbol}`,
+             `Price is very close to the entry zone. Get ready.`,
+             opp
+           );
         } else if (!isApproaching && opp.status === 'APPROACHING_ENTRY') {
            // Move back to QUALIFIED/ACTIVE if it moves away
            OpportunityService.updateStatus(opp.id, 'QUALIFIED');

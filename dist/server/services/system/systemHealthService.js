@@ -4,7 +4,7 @@ exports.SystemHealthService = void 0;
 const database_1 = require("../../config/database");
 const binanceMarketService_1 = require("../binance/binanceMarketService");
 const accountSyncService_1 = require("../account/accountSyncService");
-const monitoringService_1 = require("../monitoring/monitoringService");
+const globalMonitoringService_1 = require("../monitoring/globalMonitoringService");
 const alertService_1 = require("./alertService");
 const geminiProvider_1 = require("../ai/providers/geminiProvider");
 const opportunityService_1 = require("../opportunities/opportunityService");
@@ -44,7 +44,7 @@ exports.SystemHealthService = {
             alertService_1.AlertService.log('WARNING', 'SystemHealth', 'Binance Account Sync degraded', 'BINANCE_ACCOUNT_DOWN');
         }
         // 4. Monitoring Engine
-        const monStatus = monitoringService_1.MonitoringService.getStatus();
+        const monStatus = globalMonitoringService_1.GlobalMonitoringService.getStatus();
         if (!monStatus.running) {
             health.monitoring = 'OFFLINE';
             if (process.env.AUTO_MONITORING !== 'false') {
