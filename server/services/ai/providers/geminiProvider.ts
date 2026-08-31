@@ -143,8 +143,8 @@ export class GeminiProvider implements AIProvider {
       GeminiProvider.lastStatus = 'HEALTHY';
     }
     
-    this.fastModel = process.env.GEMINI_FAST_MODEL || 'gemini-2.5-flash';
-    this.deepModel = process.env.GEMINI_DEEP_MODEL || 'gemini-2.5-pro';
+    this.fastModel = process.env.GEMINI_FAST_MODEL || 'gemini-3.6-flash';
+    this.deepModel = process.env.GEMINI_DEEP_MODEL || 'gemini-3.6-flash';
   }
 
   private checkRateLimit() {
