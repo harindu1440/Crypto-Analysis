@@ -24,7 +24,10 @@ export const getAnalysis = async (symbol: string, interval: string = '1h') => {
 
 export const triggerAiAnalysis = async (symbol: string) => {
   const res = await fetch(`/api/ai/analyze/${symbol}`, { method: 'POST' });
-  if (!res.ok) throw new Error(`Failed to trigger AI analysis for ${symbol}`);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `Failed to trigger AI analysis for ${symbol} (Status: ${res.status})`);
+  }
   return await res.json();
 };
 

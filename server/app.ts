@@ -110,6 +110,7 @@ app.post('/api/ai/analyze/:symbol', async (req, res) => {
     const analysis = await AgentRunner.runAnalysis(req.params.symbol);
     res.json(analysis);
   } catch (error: any) {
+    console.error(`[API] AI Analysis for ${req.params.symbol} failed:`, error);
     res.status(500).json({ error: error.message });
   }
 });
