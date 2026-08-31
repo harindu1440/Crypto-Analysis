@@ -8,12 +8,16 @@ interface Props {
   symbol: string;
 }
 
+const TIMEFRAMES = ['5m', '15m', '1h', '4h', '1d'];
+
 export const AnalysisChart: React.FC<Props> = ({ symbol }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<any>(null);
   
   const [loading, setLoading] = useState(true);
+  const [timeframe, setTimeframe] = useState('1h');
+  const [tooltipData, setTooltipData] = useState<any>(null);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -52,7 +56,8 @@ export const AnalysisChart: React.FC<Props> = ({ symbol }) => {
     seriesRef.current = candlestickSeries;
 
     // Fetch initial data
-    fetch(`/api/market/klines/${symbol}?interval=1h&limit=100`)
+    setLoading(true);
+    fetch(`/api/market/klines/${symbol}?interval=${timeframe}&limit=100`)
       .then(res => res.json())
       .then(data => {
         const formatted = data.map((k: any) => ({
@@ -108,6 +113,33 @@ export const AnalysisChart: React.FC<Props> = ({ symbol }) => {
         setLoading(false);
       });
 
+    // Add Tooltip logic
+    chart.subscribeCrosshairMove(param => {
+      if (
+        param.point === undefined ||
+        !param.time ||
+        param.point.x < 0 ||
+        param.point.x > chartContainerRef.current!.clientWidth ||
+        param.point.y < 0 ||
+        param.point.y > chartContainerRef.current!.clientHeight
+      ) {
+        setTooltipData(null);
+      } else {
+        const data = param.seriesData.get(candlestickSeries) as any;
+        if (data) {
+          setTooltipData({
+            time: param.time,
+            open: data.open,
+            high: data.high,
+            low: data.low,
+            close: data.close,
+            x: param.point.x,
+            y: param.point.y
+          });
+        }
+      }
+    });
+
     const handleResize = () => {
       if (chartContainerRef.current) {
         chart.applyOptions({ width: chartContainerRef.current.clientWidth });
@@ -120,12 +152,40 @@ export const AnalysisChart: React.FC<Props> = ({ symbol }) => {
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [symbol]);
+  }, [symbol, timeframe]);
 
   return (
     <Card title={`Interactive Analysis: ${symbol}`}>
+      <div className="chart-controls">
+        {TIMEFRAMES.map(tf => (
+          <button 
+            key={tf} 
+            className={`tf-btn ${timeframe === tf ? 'active' : ''}`}
+            onClick={() => setTimeframe(tf)}
+          >
+            {tf.toUpperCase()}
+          </button>
+        ))}
+      </div>
+      
       <div className="analysis-chart-container">
         {loading && <div className="chart-loading">Loading market data...</div>}
+        
+        <div className="chart-legend">
+          <div><span style={{color: 'blue'}}>---</span> ENTRY</div>
+          <div><span style={{color: 'red'}}>—</span> STOP LOSS</div>
+          <div><span style={{color: 'green'}}>—</span> TAKE PROFIT</div>
+        </div>
+
+        {tooltipData && (
+          <div className="chart-tooltip" style={{ left: tooltipData.x + 15, top: tooltipData.y + 15 }}>
+            <div>O: <strong>{tooltipData.open}</strong></div>
+            <div>H: <strong>{tooltipData.high}</strong></div>
+            <div>L: <strong>{tooltipData.low}</strong></div>
+            <div>C: <strong>{tooltipData.close}</strong></div>
+          </div>
+        )}
+
         <div ref={chartContainerRef} className="chart-wrapper" />
       </div>
     </Card>

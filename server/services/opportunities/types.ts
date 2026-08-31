@@ -41,6 +41,16 @@ export interface TradeOpportunity {
   reason: string;
   invalidationCondition: string;
   
+  // Phase 13 additions
+  agents: { name: string; bias: string; explanation?: string }[];
+  timeframes: { timeframe: string; bias: string }[];
+  marketData: {
+    price: number;
+    volume24h?: number;
+    change24h?: number;
+    volatility?: string;
+  };
+  
   createdAt: number;
   expiresAt: number;
   

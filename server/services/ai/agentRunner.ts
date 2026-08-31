@@ -112,6 +112,27 @@ export const AgentRunner = {
           sentimentSummary: sentiment.sentimentReasoning,
           reason: finalResult.reasoning,
           invalidationCondition: c.invalidationCondition,
+          
+          agents: [
+            { name: 'Market Structure', bias: marketContext.broaderTrend, explanation: marketContext.marketCondition },
+            { name: 'Technical Analysis', bias: technical.technicalBias, explanation: technical.technicalReasoning },
+            { name: 'Pattern Analysis', bias: pattern.bias, explanation: pattern.patternInterpretation },
+            { name: 'Liquidity Analysis', bias: liquidity.bias, explanation: liquidity.liquidityReasoning },
+            { name: 'Sentiment', bias: sentiment.bias, explanation: sentiment.sentimentReasoning }
+          ],
+          timeframes: [
+            { timeframe: '1D', bias: timeframe.higherTimeframeBias },
+            { timeframe: '4H', bias: timeframe.mediumTermBias },
+            { timeframe: '1H', bias: timeframe.shortTermBias },
+            { timeframe: '15m', bias: finalResult.decision === 'CANDIDATE_TRADE' ? finalResult.tradeCandidate?.side === 'LONG' ? 'BULLISH' : 'BEARISH' : 'NEUTRAL' }
+          ],
+          marketData: {
+            price: data.market.price,
+            volume24h: data.market.volume24h,
+            change24h: data.market.change24h,
+            volatility: data.timeframes['1h']?.volatility.level || 'MEDIUM'
+          },
+
           createdAt: Date.now(),
           expiresAt: Date.now() + (6 * 60 * 60 * 1000), // 6 hours
           status: 'DETECTED'

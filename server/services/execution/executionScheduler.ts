@@ -5,6 +5,7 @@ import { BinanceExecution } from './binanceExecution';
 import { AccountSyncService } from '../account/accountSyncService';
 import { LocalDatabase } from '../../config/database';
 import { PositionManager } from './positionManager';
+import { AlertService } from '../system/alertService';
 import crypto from 'crypto';
 
 export const ExecutionScheduler = {
@@ -158,6 +159,7 @@ export const ExecutionScheduler = {
           state.preTradeNotificationSent = true;
           stateChanged = true;
           console.log(`[Execution] TRADE EXECUTION ALERT: ${plan.symbol} ${plan.direction} executing in < 5 mins!`);
+          AlertService.log('WARNING', 'Execution', `TRADE APPROACHING: ${plan.symbol} ${plan.direction} execution in < 5 mins!`);
           // We don't have SSE, but the frontend will poll /api/execution/upcoming and see COUNTDOWN
         }
       }

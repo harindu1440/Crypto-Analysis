@@ -7,6 +7,7 @@ import Analysis from './pages/Analysis';
 import Signals from './pages/Signals';
 import Watchlist from './pages/Watchlist';
 import Settings from './pages/Settings';
+import OpportunityDetail from './pages/OpportunityDetail';
 
 const App: React.FC = () => {
   return (
@@ -16,6 +17,7 @@ const App: React.FC = () => {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="markets" element={<Markets />} />
         <Route path="analysis" element={<Analysis />} />
+        <Route path="opportunities/:id" element={<OpportunityDetail />} />
         <Route path="signals" element={<Signals />} />
         <Route path="watchlist" element={<Watchlist />} />
         <Route path="settings" element={<Settings />} />

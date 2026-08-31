@@ -213,6 +213,20 @@ app.get('/api/opportunities', (req, res) => {
   res.json(OpportunityService.getActiveOpportunities());
 });
 
+app.get('/api/opportunities/:id', (req, res) => {
+  const opps = OpportunityService.getOpportunities();
+  const opp = opps.find(o => o.id === req.params.id);
+  if (!opp) return res.status(404).json({ error: 'Opportunity not found' });
+  res.json(opp);
+});
+
+app.get('/api/opportunities/:id/status', (req, res) => {
+  const opps = OpportunityService.getOpportunities();
+  const opp = opps.find(o => o.id === req.params.id);
+  if (!opp) return res.status(404).json({ error: 'Opportunity not found' });
+  res.json({ status: opp.status, reason: opp.reason });
+});
+
 // Phase 10: Position & Lifecycle Endpoints
 import { PositionManager } from './services/execution/positionManager';
 

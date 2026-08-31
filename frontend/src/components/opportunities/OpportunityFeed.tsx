@@ -70,6 +70,11 @@ export const OpportunityFeed: React.FC = () => {
                   <span>1 : {opp.riskRewardRatio}</span>
                 </div>
               </div>
+              <div className="opp-footer" style={{ marginTop: '16px', textAlign: 'right' }}>
+                <a href={`/opportunities/${opp.id}`} className="view-details-btn">
+                  VIEW FULL ANALYSIS →
+                </a>
+              </div>
             </div>
           </div>
         ))}

@@ -23,3 +23,66 @@
   z-index: 10;
   font-weight: bold;
 }
+
+.chart-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tf-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+}
+
+.tf-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.tf-btn.active {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.chart-legend {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 5;
+  background: rgba(15, 23, 42, 0.8);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.chart-tooltip {
+  position: absolute;
+  z-index: 20;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid var(--border-color);
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chart-tooltip strong {
+  color: #fff;
+}

@@ -9,6 +9,7 @@ const binanceExecution_1 = require("./binanceExecution");
 const accountSyncService_1 = require("../account/accountSyncService");
 const database_1 = require("../../config/database");
 const positionManager_1 = require("./positionManager");
+const alertService_1 = require("../system/alertService");
 const crypto_1 = __importDefault(require("crypto"));
 exports.ExecutionScheduler = {
     // Execution locks prevent concurrent executions of the same plan
@@ -132,6 +133,7 @@ exports.ExecutionScheduler = {
                     state.preTradeNotificationSent = true;
                     stateChanged = true;
                     console.log(`[Execution] TRADE EXECUTION ALERT: ${plan.symbol} ${plan.direction} executing in < 5 mins!`);
+                    alertService_1.AlertService.log('WARNING', 'Execution', `TRADE APPROACHING: ${plan.symbol} ${plan.direction} execution in < 5 mins!`);
                     // We don't have SSE, but the frontend will poll /api/execution/upcoming and see COUNTDOWN
                 }
             }
