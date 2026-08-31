@@ -9,7 +9,7 @@
     "build": "npm run build --prefix frontend && tsc",
     "test": "jest",
     "start": "node dist/server.js",
-    "postinstall": "npm install --prefix frontend && npm run build"
+    "postinstall": "rm -rf frontend/node_modules frontend/package-lock.json && npm install --prefix frontend && npm run build"
   },
   "dependencies": {
     "@google/genai": "^2.19.0",
