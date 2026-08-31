@@ -33,7 +33,6 @@ export const BacktestDashboard: React.FC = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       
-      setJobId(data.jobId);
       pollStatus(data.jobId);
     } catch (err: any) {
       setError(err.message);
