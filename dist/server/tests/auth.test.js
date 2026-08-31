@@ -21,7 +21,10 @@ describe('Auth & User Services', () => {
             sessions: [],
             watchlists: {},
             savedOpportunities: [],
-            userPreferences: {}
+            userPreferences: {},
+            historicalData: [],
+            backtests: [],
+            backtestJobs: {}
         };
     });
     it('should register a new user successfully', () => {

@@ -82,6 +82,7 @@ app.get('/api/markets/klines/:symbol', async (req, res) => {
         const interval = req.query.interval || '1h';
         const limit = Number(req.query.limit) || 24;
         const klines = await binanceMarketService_1.BinanceMarketService.getKlines(req.params.symbol, interval, limit);
+        res.json(klines);
     }
     catch (error) {
         res.status(500).json({ error: error.message });
@@ -242,6 +243,10 @@ const globalMonitoringService_1 = require("./services/monitoring/globalMonitorin
 app.get('/api/monitoring/status', (req, res) => {
     res.json(globalMonitoringService_1.GlobalMonitoringService.getStatus());
 });
+app.get('/api/monitoring/events', (req, res) => {
+    // Return recent events from notification orchestrator or a mock array for now
+    res.json([]);
+});
 app.post('/api/monitoring/assets/:symbol', (req, res) => {
     try {
         globalMonitoringService_1.GlobalMonitoringService.addAsset(req.params.symbol);
@@ -287,8 +292,10 @@ const notificationOrchestrator_1 = require("./services/notifications/notificatio
 const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
 const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
 const authMiddleware_1 = require("./middleware/authMiddleware");
+const backtestRouter_1 = require("./routes/backtestRouter");
 app.use('/api/auth', authRoutes_1.default);
 app.use('/api/user', userRoutes_1.default);
+app.use('/api/backtest', backtestRouter_1.backtestRouter);
 app.get('/api/notifications', authMiddleware_1.requireAuth, (req, res) => {
     res.json(notificationOrchestrator_1.NotificationOrchestrator.getNotifications(req.user.id));
 });

@@ -24,7 +24,10 @@ class LocalDatabase {
         sessions: [],
         watchlists: {},
         savedOpportunities: [],
-        userPreferences: {}
+        userPreferences: {},
+        historicalData: {},
+        backtests: [],
+        backtestJobs: {}
     };
     static initialize() {
         const dir = path_1.default.dirname(this.filePath);
@@ -59,6 +62,12 @@ class LocalDatabase {
                 this.data.savedOpportunities = [];
             if (!this.data.userPreferences)
                 this.data.userPreferences = {};
+            if (!this.data.historicalData)
+                this.data.historicalData = {};
+            if (!this.data.backtests)
+                this.data.backtests = [];
+            if (!this.data.backtestJobs)
+                this.data.backtestJobs = {};
         }
         catch (e) {
             console.error('Failed to load database:', e);
@@ -77,7 +86,10 @@ class LocalDatabase {
                 sessions: [],
                 watchlists: {},
                 savedOpportunities: [],
-                userPreferences: {}
+                userPreferences: {},
+                historicalData: {},
+                backtests: [],
+                backtestJobs: {}
             };
         }
     }

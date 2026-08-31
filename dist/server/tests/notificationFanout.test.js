@@ -21,7 +21,10 @@ describe('Notification Fan-Out', () => {
             sessions: [],
             watchlists: {},
             savedOpportunities: [],
-            userPreferences: {}
+            userPreferences: {},
+            historicalData: [],
+            backtests: [],
+            backtestJobs: {}
         };
     });
     it('should fan out notifications correctly based on preferences', () => {
