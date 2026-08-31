@@ -1,5 +1,6 @@
 import { AIProvider } from './providers/provider.interface';
 import { TechnicalAnalysisSnapshot } from '../analysis/types';
+import { PROMPTS } from './prompts';
 import {
   MarketContextOutput,
   TechnicalAnalysisOutput,
@@ -18,7 +19,7 @@ export class AIAgent {
       return await this.provider.generateObject<MarketContextOutput>(
         JSON.stringify(data),
         'MarketContext',
-        'You are a Market Context Agent. Evaluate the broader market conditions.'
+        `${PROMPTS.marketContext.description}\n${PROMPTS.marketContext.instructions}`
       );
     } catch (e) {
       console.error('MarketContext Agent failed:', e);
@@ -38,7 +39,7 @@ export class AIAgent {
       return await this.provider.generateObject<TechnicalAnalysisOutput>(
         JSON.stringify(data),
         'TechnicalAnalysis',
-        'You are a Technical Analysis Agent. Interpret the deterministic technical indicators.'
+        `${PROMPTS.technical.description}\n${PROMPTS.technical.instructions}`
       );
     } catch (e) {
       return {
@@ -57,7 +58,7 @@ export class AIAgent {
       return await this.provider.generateObject<PatternAnalysisOutput>(
         JSON.stringify(data),
         'PatternAnalysis',
-        'You are a Pattern Analysis Agent. Interpret detected candlestick patterns.'
+        `${PROMPTS.pattern.description}\n${PROMPTS.pattern.instructions}`
       );
     } catch (e) {
       return {
@@ -76,7 +77,7 @@ export class AIAgent {
       return await this.provider.generateObject<LiquidityAnalysisOutput>(
         JSON.stringify(data),
         'LiquidityAnalysis',
-        'You are a Liquidity Agent. Detect liquidity zones, stop hunts, and sweeps.'
+        `${PROMPTS.liquidity.description}\n${PROMPTS.liquidity.instructions}`
       );
     } catch (e) {
       return {
@@ -94,7 +95,7 @@ export class AIAgent {
       return await this.provider.generateObject<SentimentAnalysisOutput>(
         JSON.stringify(data),
         'SentimentAnalysis',
-        'You are a Sentiment/News Agent. Analyze market regime and broad sentiment based on price action.'
+        `${PROMPTS.sentiment.description}\n${PROMPTS.sentiment.instructions}`
       );
     } catch (e) {
       return {
@@ -112,7 +113,7 @@ export class AIAgent {
       return await this.provider.generateObject<TimeframeAnalysisOutput>(
         JSON.stringify(data),
         'TimeframeAnalysis',
-        'You are a Multi-Timeframe Agent. Compare timeframes for alignment or conflict.'
+        `${PROMPTS.timeframe.description}\n${PROMPTS.timeframe.instructions}`
       );
     } catch (e) {
       return {
@@ -131,7 +132,7 @@ export class AIAgent {
       return await this.provider.generateObject<RiskAnalysisOutput>(
         JSON.stringify({ data, otherAnalysis }),
         'RiskAnalysis',
-        'You are a Risk Analysis Agent. Evaluate if the setup has acceptable market conditions.'
+        `${PROMPTS.risk.description}\n${PROMPTS.risk.instructions}`
       );
     } catch (e) {
       return {
@@ -149,7 +150,7 @@ export class AIAgent {
       return await this.provider.generateObject<any>(
         JSON.stringify({ data, agentResults }),
         'MasterDecision',
-        'You are the Master Decision Agent. Analyze specialist inputs. Prefer NO_TRADE if uncertainty exists.'
+        `${PROMPTS.master.description}\n${PROMPTS.master.instructions}`
       );
     } catch (e) {
       return {

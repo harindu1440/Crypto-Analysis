@@ -1,13 +1,12 @@
 import { AIAgent } from './aiAgent';
-import { MockProvider } from './providers/mockProvider';
+import { GeminiProvider } from './providers/geminiProvider';
 import { AnalysisService } from '../analysis/analysisService';
 import { MasterDecisionOutput, TradeSide } from './schemas/types';
 import { OpportunityService } from '../opportunities/opportunityService';
 import { TradeOpportunity } from '../opportunities/types';
 import crypto from 'crypto';
 
-// In a real app we'd load the correct provider via env. For now we use the mock.
-const provider = new MockProvider();
+const provider = new GeminiProvider();
 const agent = new AIAgent(provider);
 
 // In-memory lock to prevent duplicate concurrent analysis
@@ -87,6 +86,35 @@ export const AgentRunner = {
       
       // Save to memory
       latestAnalysisResults.set(symbol, finalResult);
+
+      // Deterministic Validation & R:R recalculation
+      if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate) {
+        let valid = true;
+        const c = finalResult.tradeCandidate;
+        const entryPrice = (c.entryZone.min + c.entryZone.max) / 2;
+        
+        if (c.side === 'LONG') {
+          if (c.stopLoss >= entryPrice) valid = false;
+          c.takeProfitLevels.forEach(tp => { if (tp <= entryPrice) valid = false; });
+        } else {
+          if (c.stopLoss <= entryPrice) valid = false;
+          c.takeProfitLevels.forEach(tp => { if (tp >= entryPrice) valid = false; });
+        }
+
+        if (valid) {
+          const risk = Math.abs(entryPrice - c.stopLoss);
+          const reward = Math.abs(c.takeProfitLevels[0] - entryPrice);
+          c.riskRewardRatio = risk > 0 ? parseFloat((reward / risk).toFixed(2)) : 0;
+          
+          if (c.riskRewardRatio < 1.0) valid = false; // Reject poor R:R
+        }
+
+        if (!valid) {
+          finalResult.decision = 'NO_TRADE';
+          finalResult.reasoning = 'Deterministically rejected by Risk validation engine. ' + finalResult.reasoning;
+          finalResult.tradeCandidate = null;
+        }
+      }
 
       // Phase 12: Generate Global Trade Opportunity if valid
       if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate && maxScore >= 3) {

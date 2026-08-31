@@ -12,6 +12,7 @@
     "postinstall": "npm install --prefix frontend"
   },
   "dependencies": {
+    "@google/genai": "^2.19.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
