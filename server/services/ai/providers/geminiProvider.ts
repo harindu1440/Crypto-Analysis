@@ -176,8 +176,8 @@ export class GeminiProvider implements AIProvider {
 
     const modelToUse = schemaName === 'MasterDecision' ? this.deepModel : this.fastModel;
 
-    let retries = 2;
-    let delay = 1000;
+    let retries = 3;
+    let delay = 3000;
 
     while (retries >= 0) {
       try {
@@ -205,9 +205,16 @@ export class GeminiProvider implements AIProvider {
         retries--;
         console.error(`[GeminiProvider] Error calling Gemini (Model: ${modelToUse}, Schema: ${schemaName}):`, err.message);
         
-        if (err.message.includes('Rate Limit') || err.message.includes('429')) {
+        if (err.message.includes('Rate Limit') || err.message.includes('429') || err.message.includes('quota')) {
            GeminiProvider.lastStatus = 'DEGRADED';
            AlertService.log('WARNING', 'AI', 'Gemini API Rate Limit hit. Retrying...');
+           // If error message has "Please retry in 13.5s", try to parse it
+           const retryMatch = err.message.match(/retry in ([\d\.]+)s/);
+           if (retryMatch) {
+             delay = Math.max(delay, (parseFloat(retryMatch[1]) * 1000) + 1000);
+           } else {
+             delay = Math.max(delay, 10000); // Default to 10s backoff for rate limits
+           }
         } else if (err.message.includes('50') || err.message.includes('timeout')) {
            GeminiProvider.lastStatus = 'DEGRADED';
         }
@@ -216,8 +223,9 @@ export class GeminiProvider implements AIProvider {
           throw err;
         }
         
+        console.warn(`[GeminiProvider] Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2; // exponential backoff
+        delay = Math.min(delay * 1.5, 30000); // exponential backoff up to 30s
       }
     }
     

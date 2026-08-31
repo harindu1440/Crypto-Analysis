@@ -33,14 +33,17 @@ export const AgentRunner = {
       const data = await AnalysisService.getAnalysisSnapshot(symbol, ['15m', '1h', '4h', '1d']);
       
       // 2. Run independent specialist agents concurrently
-      const [marketContext, technical, pattern, timeframe, liquidity, sentiment] = await Promise.all([
-        agent.analyzeMarketContext(data),
-        agent.analyzeTechnicals(data),
-        agent.analyzePatterns(data),
-        agent.analyzeTimeframes(data),
-        agent.analyzeLiquidity(data),
-        agent.analyzeSentiment(data)
-      ]);
+      // Run independent specialist agents sequentially or in small batches to respect Gemini Free Tier 15 RPM limit
+      const marketContext = await agent.analyzeMarketContext(data);
+      const technical = await agent.analyzeTechnicals(data);
+      const pattern = await agent.analyzePatterns(data);
+      
+      // Add a small 2-second delay to let the bucket refill slightly
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const timeframe = await agent.analyzeTimeframes(data);
+      const liquidity = await agent.analyzeLiquidity(data);
+      const sentiment = await agent.analyzeSentiment(data);
 
       const specialistResults = { marketContext, technical, pattern, timeframe, liquidity, sentiment };
 
