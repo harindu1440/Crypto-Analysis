@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { Card } from '../components/common/Card';
-import { Play, TrendingUp, TrendingDown, Target, Clock, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Play, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const BacktestDashboard: React.FC = () => {
   const { preferences } = useAuth();
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [jobId, setJobId] = useState<string | null>(null);
   const [results, setResults] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
