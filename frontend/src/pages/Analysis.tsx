@@ -45,9 +45,9 @@ const Analysis: React.FC = () => {
     const pollSystem = async () => {
       try {
         const [executions, mStatus, mEvents, aStatus, aBals, aOrds] = await Promise.all([
-          getUpcomingExecutions(),
-          getMonitoringStatus(),
-          getMonitoringEvents(),
+          getUpcomingExecutions().catch(() => []),
+          getMonitoringStatus().catch(() => null),
+          getMonitoringEvents().catch(() => []),
           getAccountStatus().catch(() => null),
           getAccountBalances().catch(() => []),
           getAccountOrders().catch(() => [])

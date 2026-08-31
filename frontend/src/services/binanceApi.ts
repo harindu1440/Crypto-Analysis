@@ -123,10 +123,9 @@ export const stopMonitoring = async () => {
 };
 
 export const addMonitoredAsset = async (symbol: string) => {
-  const res = await fetch('/api/monitoring/assets', {
+  const res = await fetch(`/api/monitoring/assets/${symbol}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ symbol })
   });
   if (!res.ok) throw new Error('Failed to add monitored asset');
   return await res.json();
