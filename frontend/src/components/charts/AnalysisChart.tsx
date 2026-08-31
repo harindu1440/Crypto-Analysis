@@ -58,55 +58,41 @@ export const AnalysisChart: React.FC<Props> = ({ symbol }) => {
     // Fetch initial data
     setLoading(true);
     fetch(`/api/markets/klines/${symbol}?interval=${timeframe}&limit=100`)
-      .then(res => res.json())
-      .then(data => {
-        const formatted = data.map((k: any) => ({
-          time: k.openTime / 1000,
-          open: parseFloat(k.open),
-          high: parseFloat(k.high),
-          low: parseFloat(k.low),
-          close: parseFloat(k.close)
-        }));
-        candlestickSeries.setData(formatted);
-        
-        // Fetch any opportunities to annotate
-        return fetch('/api/opportunities');
+      .then(res => {
+        if (!res.ok) throw new Error(`Klines API returned ${res.status}`);
+        return res.json();
       })
-      .then(res => res.json())
-      .then(opps => {
-        const myOpp = opps.find((o: any) => o.symbol === symbol);
-        if (myOpp && seriesRef.current) {
-          // Add Price Lines for AI Annotations
-          seriesRef.current.createPriceLine({
-            price: myOpp.entryPrice,
-            color: 'blue',
-            lineWidth: 2,
-            lineStyle: LineStyle.Dashed,
-            axisLabelVisible: true,
-            title: 'ENTRY',
-          });
-          
-          seriesRef.current.createPriceLine({
-            price: myOpp.stopLoss,
-            color: 'red',
-            lineWidth: 2,
-            lineStyle: LineStyle.Solid,
-            axisLabelVisible: true,
-            title: 'SL',
-          });
-
-          if (myOpp.takeProfitTargets && myOpp.takeProfitTargets.length > 0) {
-            seriesRef.current.createPriceLine({
-              price: myOpp.takeProfitTargets[0],
-              color: 'green',
-              lineWidth: 2,
-              lineStyle: LineStyle.Solid,
-              axisLabelVisible: true,
-              title: 'TP',
-            });
-          }
+      .then(data => {
+        if (!Array.isArray(data) || data.length === 0) {
+          throw new Error('No kline data received');
         }
+        const formatted = data
+          .map((k: any) => ({
+            time: Math.floor(k.openTime / 1000) as any,
+            open: parseFloat(k.open),
+            high: parseFloat(k.high),
+            low: parseFloat(k.low),
+            close: parseFloat(k.close)
+          }))
+          .filter(k => k.open > 0 && k.high > 0 && k.low > 0 && k.close > 0)
+          .sort((a, b) => (a.time as number) - (b.time as number));
+        
+        candlestickSeries.setData(formatted);
         setLoading(false);
+        
+        // Optionally annotate with opportunities (non-blocking)
+        fetch('/api/opportunities')
+          .then(r => r.ok ? r.json() : [])
+          .then(opps => {
+            if (!Array.isArray(opps)) return;
+            const myOpp = opps.find((o: any) => o.symbol === symbol);
+            if (myOpp && seriesRef.current) {
+              if (myOpp.entryPrice) seriesRef.current.createPriceLine({ price: myOpp.entryPrice, color: '#3b82f6', lineWidth: 2, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'ENTRY' });
+              if (myOpp.stopLoss) seriesRef.current.createPriceLine({ price: myOpp.stopLoss, color: '#ef4444', lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: 'SL' });
+              if (myOpp.takeProfitTargets?.[0]) seriesRef.current.createPriceLine({ price: myOpp.takeProfitTargets[0], color: '#22c55e', lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: 'TP' });
+            }
+          })
+          .catch(() => {}); // opportunities are optional
       })
       .catch(err => {
         console.error('Failed to load chart data', err);

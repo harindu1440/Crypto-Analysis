@@ -329,7 +329,7 @@ import { backtestRouter } from './routes/backtestRouter';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
-app.use('/api/backtest', requireAuth, backtestRouter);
+app.use('/api/backtest', backtestRouter);
 
 app.get('/api/notifications', requireAuth, (req: any, res) => {
   res.json(NotificationOrchestrator.getNotifications(req.user.id));
