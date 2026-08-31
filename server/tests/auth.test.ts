@@ -22,7 +22,10 @@ describe('Auth & User Services', () => {
       sessions: [],
       watchlists: {},
       savedOpportunities: [],
-      userPreferences: {}
+      userPreferences: {},
+      historicalData: [],
+      backtests: [],
+      backtestJobs: {}
     };
   });
 

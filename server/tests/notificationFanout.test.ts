@@ -20,7 +20,10 @@ describe('Notification Fan-Out', () => {
       sessions: [],
       watchlists: {},
       savedOpportunities: [],
-      userPreferences: {}
+      userPreferences: {},
+      historicalData: [],
+      backtests: [],
+      backtestJobs: {}
     };
   });
 
