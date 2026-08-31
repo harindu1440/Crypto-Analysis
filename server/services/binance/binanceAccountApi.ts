@@ -12,14 +12,18 @@ export const BinanceAccountApi = {
   getCredentials() {
     const apiKey = process.env.BINANCE_API_KEY;
     const apiSecret = process.env.BINANCE_API_SECRET;
-    if (!apiKey || !apiSecret) {
-      throw new Error('BINANCE_API_KEY and BINANCE_API_SECRET must be configured.');
+    if (!apiKey || !apiSecret || apiKey.trim() === '' || apiSecret.trim() === '') {
+      return null;
     }
     return { apiKey, apiSecret };
   },
 
   async signedRequest(endpoint: string, method: string = 'GET', queryParams: string = '') {
-    const { apiKey, apiSecret } = this.getCredentials();
+    const creds = this.getCredentials();
+    if (!creds) {
+      throw new Error('NO_CREDENTIALS: API keys not configured.');
+    }
+    const { apiKey, apiSecret } = creds;
     const timestamp = Date.now();
     
     let queryString = `timestamp=${timestamp}&recvWindow=5000`;

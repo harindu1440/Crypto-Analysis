@@ -8,6 +8,9 @@ export interface LocalDatabaseSchema {
   positions: any[];
   emergencyState: any;
   dailyRiskState: any;
+  monitoredAssets: any[];
+  monitoringEvents: any[];
+  opportunities: any[];
 }
 
 export class LocalDatabase {
@@ -19,7 +22,10 @@ export class LocalDatabase {
     auditLog: [],
     positions: [],
     emergencyState: { isHalted: false },
-    dailyRiskState: { date: new Date().toISOString().split('T')[0], realizedLoss: 0 }
+    dailyRiskState: { date: new Date().toISOString().split('T')[0], realizedLoss: 0 },
+    monitoredAssets: [],
+    monitoringEvents: [],
+    opportunities: []
   };
 
   public static initialize() {
@@ -50,7 +56,10 @@ export class LocalDatabase {
         auditLog: [],
         positions: [],
         emergencyState: { isHalted: false },
-        dailyRiskState: { date: new Date().toISOString().split('T')[0], realizedLoss: 0 }
+        dailyRiskState: { date: new Date().toISOString().split('T')[0], realizedLoss: 0 },
+        monitoredAssets: [],
+        monitoringEvents: [],
+        opportunities: []
       };
     }
   }

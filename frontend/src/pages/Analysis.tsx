@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../components/common/Card';
+import { AnalysisChart } from '../components/charts/AnalysisChart';
 import { Cpu, AlertTriangle, CheckCircle, Settings, ShieldCheck, XCircle, Clock, Send, Ban, Activity, Power, PowerOff, Plus, Trash2, Play, Pause } from 'lucide-react';
 import { useGlobalMarketData } from '../context/MarketDataContext';
 import { 
@@ -423,6 +424,12 @@ const Analysis: React.FC = () => {
         </select>
         <button onClick={handleRunAi} disabled={aiLoading || !asset} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '4px', cursor: aiLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', fontWeight: 'bold' }}><Cpu size={16} />{aiLoading ? 'Agents Analyzing...' : 'Run Master AI Analysis'}</button>
       </div>
+
+      {asset && (
+        <div style={{ marginTop: '16px', marginBottom: '16px' }}>
+          <AnalysisChart symbol={asset} />
+        </div>
+      )}
       
       {aiResult && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', border: '1px solid var(--primary-color)', borderRadius: '8px', padding: '16px', backgroundColor: 'rgba(59, 130, 246, 0.05)' }}>

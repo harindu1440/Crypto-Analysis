@@ -6,7 +6,8 @@ class AccountSyncOrchestrator {
     lastSyncAt: 0,
     balances: [],
     openOrders: [],
-    connectionStatus: 'DISCONNECTED'
+    connectionStatus: 'DISCONNECTED',
+    automatedTradingEnabled: false
   };
 
   private syncInterval: NodeJS.Timeout | null = null;
@@ -43,6 +44,12 @@ class AccountSyncOrchestrator {
       this.state.lastError = undefined;
 
     } catch (error: any) {
+      if (error.message.includes('NO_CREDENTIALS')) {
+        this.state.connectionStatus = 'NOT_CONNECTED';
+        this.state.lastError = 'Binance account not connected (Missing API keys).';
+        return;
+      }
+      
       console.error('[AccountSync] Sync failed:', error.message);
       this.state.connectionStatus = 'ERROR';
       this.state.lastError = error.message;
@@ -51,6 +58,13 @@ class AccountSyncOrchestrator {
 
   public getState(): AccountState {
     return this.state;
+  }
+
+  public setAutomatedTrading(enabled: boolean) {
+    if (enabled && this.state.connectionStatus !== 'CONNECTED') {
+      throw new Error('Cannot enable automated trading without an active Binance connection.');
+    }
+    this.state.automatedTradingEnabled = enabled;
   }
 
   public getAvailableBalance(asset: string): number {

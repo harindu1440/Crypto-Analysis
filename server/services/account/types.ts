@@ -24,13 +24,14 @@ export interface BinanceAccountSnapshot {
   balances: BinanceAssetBalance[];
 }
 
-export type ConnectionStatus = 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
+export type ConnectionStatus = 'CONNECTED' | 'DISCONNECTED' | 'ERROR' | 'NOT_CONNECTED';
 
 export interface AccountState {
   lastSyncAt: number;
   balances: BinanceAssetBalance[];
   openOrders: BinanceOrderStatus[];
   connectionStatus: ConnectionStatus;
+  automatedTradingEnabled: boolean;
   lastError?: string;
 }
 

@@ -189,6 +189,11 @@ app.post('/api/execution/cancel/:planId', (req, res) => {
 app.get('/api/execution/audit/:planId', (req, res) => {
     res.json(executionScheduler_1.ExecutionScheduler.getAuditLog(req.params.planId));
 });
+// Phase 12: Opportunity Endpoints
+const opportunityService_1 = require("./services/opportunities/opportunityService");
+app.get('/api/opportunities', (req, res) => {
+    res.json(opportunityService_1.OpportunityService.getActiveOpportunities());
+});
 // Phase 10: Position & Lifecycle Endpoints
 const positionManager_1 = require("./services/execution/positionManager");
 app.get('/api/trading/positions', (req, res) => {
@@ -273,6 +278,26 @@ app.get('/api/monitoring/events', (req, res) => {
 });
 // Phase 9 Account Endpoints
 const accountSyncService_1 = require("./services/account/accountSyncService");
+app.get('/api/account', async (req, res) => {
+    const state = accountSyncService_1.AccountSyncService.getState();
+    res.json({
+        status: state.connectionStatus,
+        lastSyncAt: state.lastSyncAt,
+        balances: state.balances,
+        error: state.lastError,
+        automatedTradingEnabled: state.automatedTradingEnabled
+    });
+});
+app.post('/api/account/automated-trading', express_1.default.json(), (req, res) => {
+    try {
+        const { enabled } = req.body;
+        accountSyncService_1.AccountSyncService.setAutomatedTrading(enabled);
+        res.json({ success: true, enabled: accountSyncService_1.AccountSyncService.getState().automatedTradingEnabled });
+    }
+    catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
 app.get('/api/account/status', (req, res) => {
     const state = accountSyncService_1.AccountSyncService.getState();
     res.json({

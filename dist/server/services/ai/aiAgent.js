@@ -52,6 +52,34 @@ class AIAgent {
             };
         }
     }
+    async analyzeLiquidity(data) {
+        try {
+            return await this.provider.generateObject(JSON.stringify(data), 'LiquidityAnalysis', 'You are a Liquidity Agent. Detect liquidity zones, stop hunts, and sweeps.');
+        }
+        catch (e) {
+            return {
+                status: 'ERROR',
+                bias: 'NEUTRAL',
+                liquidityZones: [],
+                sweepsDetected: false,
+                liquidityReasoning: 'Agent execution failed'
+            };
+        }
+    }
+    async analyzeSentiment(data) {
+        try {
+            return await this.provider.generateObject(JSON.stringify(data), 'SentimentAnalysis', 'You are a Sentiment/News Agent. Analyze market regime and broad sentiment based on price action.');
+        }
+        catch (e) {
+            return {
+                status: 'ERROR',
+                bias: 'NEUTRAL',
+                sentimentScore: 50,
+                keyThemes: [],
+                sentimentReasoning: 'Agent execution failed'
+            };
+        }
+    }
     async analyzeTimeframes(data) {
         try {
             return await this.provider.generateObject(JSON.stringify(data), 'TimeframeAnalysis', 'You are a Multi-Timeframe Agent. Compare timeframes for alignment or conflict.');

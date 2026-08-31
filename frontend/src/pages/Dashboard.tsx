@@ -6,6 +6,7 @@ import { Card } from '../components/common/Card';
 import { LiveTradingPanel } from '../components/trading/LiveTradingPanel';
 import { SystemStatusPanel } from '../components/system/SystemStatusPanel';
 import { AnalyticsPanel } from '../components/analytics/AnalyticsPanel';
+import { OpportunityFeed } from '../components/opportunities/OpportunityFeed';
 import { useGlobalMarketData } from '../context/MarketDataContext';
 import { getTicker } from '../services/binanceApi';
 import type { MarketAsset } from '../types';
@@ -89,6 +90,10 @@ const Dashboard: React.FC = () => {
       <div className="status-analytics-row" style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
         <div style={{ flex: 1 }}><SystemStatusPanel /></div>
         <div style={{ flex: 1 }}><AnalyticsPanel /></div>
+      </div>
+
+      <div style={{ marginTop: '16px' }}>
+        <OpportunityFeed />
       </div>
 
       <Card title="My Markets">

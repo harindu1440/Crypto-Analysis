@@ -1,0 +1,47 @@
+.glossary-term {
+  position: relative;
+  cursor: help;
+  border-bottom: 1px dotted var(--text-secondary);
+  display: inline-block;
+}
+
+.glossary-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  background: var(--surface-3);
+  color: var(--text-primary);
+  padding: 12px;
+  border-radius: 6px;
+  width: 250px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 100;
+  font-size: 0.85rem;
+  font-weight: normal;
+  text-align: left;
+  border: 1px solid var(--border-color);
+}
+
+.glossary-tooltip strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-primary);
+}
+
+.glossary-tooltip p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.glossary-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: var(--surface-3) transparent transparent transparent;
+}

@@ -229,6 +229,12 @@ export const ExecutionScheduler = {
         throw new Error(`Execution aborted. Plan expired.`);
       }
 
+      // Phase 12: Check if execution is explicitly enabled by the user
+      const accountState = AccountSyncService.getState();
+      if (!accountState.automatedTradingEnabled) {
+        throw new Error('Execution aborted. Automated Trading is Disabled.');
+      }
+
       // Phase 9: Live Trading Guard
       const isLive = (process.env.BINANCE_MODE || 'testnet') === 'live';
       const liveEnabled = process.env.LIVE_TRADING_ENABLED === 'true';

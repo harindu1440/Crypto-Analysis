@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card } from '../components/common/Card';
 import { useBackendStatus } from '../hooks/useBackendStatus';
+import { BinanceConnection } from '../components/account/BinanceConnection';
 
 const Settings: React.FC = () => {
   const backendStatus = useBackendStatus();
@@ -11,6 +12,8 @@ const Settings: React.FC = () => {
         <h1 style={{ fontSize: '24px', margin: '0 0 8px 0' }}>Settings</h1>
         <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Configure your platform preferences</p>
       </header>
+
+      <BinanceConnection />
 
       <Card title="Appearance">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-color)' }}>

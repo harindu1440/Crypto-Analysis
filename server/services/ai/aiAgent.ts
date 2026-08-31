@@ -4,6 +4,8 @@ import {
   MarketContextOutput,
   TechnicalAnalysisOutput,
   PatternAnalysisOutput,
+  LiquidityAnalysisOutput,
+  SentimentAnalysisOutput,
   TimeframeAnalysisOutput,
   RiskAnalysisOutput
 } from './schemas/types';
@@ -65,6 +67,42 @@ export class AIAgent {
         reliabilityAssessment: 'UNKNOWN',
         confirmationRequirements: 'UNKNOWN',
         invalidationConditions: 'UNKNOWN'
+      };
+    }
+  }
+
+  async analyzeLiquidity(data: TechnicalAnalysisSnapshot): Promise<LiquidityAnalysisOutput> {
+    try {
+      return await this.provider.generateObject<LiquidityAnalysisOutput>(
+        JSON.stringify(data),
+        'LiquidityAnalysis',
+        'You are a Liquidity Agent. Detect liquidity zones, stop hunts, and sweeps.'
+      );
+    } catch (e) {
+      return {
+        status: 'ERROR',
+        bias: 'NEUTRAL',
+        liquidityZones: [],
+        sweepsDetected: false,
+        liquidityReasoning: 'Agent execution failed'
+      };
+    }
+  }
+
+  async analyzeSentiment(data: TechnicalAnalysisSnapshot): Promise<SentimentAnalysisOutput> {
+    try {
+      return await this.provider.generateObject<SentimentAnalysisOutput>(
+        JSON.stringify(data),
+        'SentimentAnalysis',
+        'You are a Sentiment/News Agent. Analyze market regime and broad sentiment based on price action.'
+      );
+    } catch (e) {
+      return {
+        status: 'ERROR',
+        bias: 'NEUTRAL',
+        sentimentScore: 50,
+        keyThemes: [],
+        sentimentReasoning: 'Agent execution failed'
       };
     }
   }

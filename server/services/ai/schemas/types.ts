@@ -31,6 +31,22 @@ export interface PatternAnalysisOutput {
   invalidationConditions: string;
 }
 
+export interface LiquidityAnalysisOutput {
+  status: AgentStatus;
+  bias: MarketBias;
+  liquidityZones: string[];
+  sweepsDetected: boolean;
+  liquidityReasoning: string;
+}
+
+export interface SentimentAnalysisOutput {
+  status: AgentStatus;
+  bias: MarketBias;
+  sentimentScore: number; // 0-100
+  keyThemes: string[];
+  sentimentReasoning: string;
+}
+
 export interface TimeframeAnalysisOutput {
   status: AgentStatus;
   shortTermBias: MarketBias;
@@ -77,7 +93,10 @@ export interface MasterDecisionOutput {
     marketContext: MarketContextOutput;
     technical: TechnicalAnalysisOutput;
     pattern: PatternAnalysisOutput;
+    liquidity: LiquidityAnalysisOutput;
+    sentiment: SentimentAnalysisOutput;
     timeframe: TimeframeAnalysisOutput;
     risk: RiskAnalysisOutput;
   };
+  consensusScore?: string;
 }
