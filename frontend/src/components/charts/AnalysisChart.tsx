@@ -57,7 +57,7 @@ export const AnalysisChart: React.FC<Props> = ({ symbol }) => {
 
     // Fetch initial data
     setLoading(true);
-    fetch(`/api/market/klines/${symbol}?interval=${timeframe}&limit=100`)
+    fetch(`/api/markets/klines/${symbol}?interval=${timeframe}&limit=100`)
       .then(res => res.json())
       .then(data => {
         const formatted = data.map((k: any) => ({

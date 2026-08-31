@@ -85,6 +85,7 @@ app.get('/api/markets/klines/:symbol', async (req, res) => {
     const interval = (req.query.interval as string) || '1h';
     const limit = Number(req.query.limit) || 24;
     const klines = await BinanceMarketService.getKlines(req.params.symbol, interval, limit);
+    res.json(klines);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
