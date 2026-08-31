@@ -12,7 +12,9 @@ const database_1 = require("./server/config/database");
 require("./server/services/execution/reconciliationService");
 require("./server/services/execution/protectionService");
 require("./server/services/execution/positionManager");
+const databaseBackupService_1 = require("./server/services/system/databaseBackupService");
 database_1.LocalDatabase.initialize();
+databaseBackupService_1.DatabaseBackupService.init();
 const PORT = Number(process.env.SERVER_PORT) || Number(process.env.PORT) || 3000;
 const server = http_1.default.createServer(app_1.app);
 // Initialize Local WebSocket Server for Frontend

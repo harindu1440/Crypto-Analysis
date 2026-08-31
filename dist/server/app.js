@@ -24,6 +24,28 @@ app.get('/health', (req, res) => {
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
 });
+// Phase 11: System & Analytics Endpoints
+const systemHealthService_1 = require("./services/system/systemHealthService");
+const alertService_1 = require("./services/system/alertService");
+const tradeAnalyticsService_1 = require("./services/analytics/tradeAnalyticsService");
+app.get('/api/system/health', async (req, res) => {
+    try {
+        const health = await systemHealthService_1.SystemHealthService.getHealth();
+        res.json(health);
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+app.get('/api/system/alerts', (req, res) => {
+    res.json(alertService_1.AlertService.getAlerts());
+});
+app.get('/api/analytics/performance', (req, res) => {
+    res.json(tradeAnalyticsService_1.TradeAnalyticsService.getAnalytics());
+});
+app.get('/api/analytics/equity-curve', (req, res) => {
+    res.json(tradeAnalyticsService_1.TradeAnalyticsService.getEquityCurve());
+});
 // Binance Market Routes
 const binanceMarketService_1 = require("./services/binance/binanceMarketService");
 app.get('/api/markets/symbols', async (req, res) => {

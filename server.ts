@@ -7,8 +7,10 @@ import { LocalDatabase } from './server/config/database';
 import './server/services/execution/reconciliationService';
 import './server/services/execution/protectionService';
 import './server/services/execution/positionManager';
+import { DatabaseBackupService } from './server/services/system/databaseBackupService';
 
 LocalDatabase.initialize();
+DatabaseBackupService.init();
 
 const PORT = Number(process.env.SERVER_PORT) || Number(process.env.PORT) || 3000;
 

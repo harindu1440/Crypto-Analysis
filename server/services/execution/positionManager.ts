@@ -2,6 +2,8 @@ import { LocalDatabase } from '../../config/database';
 import { Position } from './types';
 import { BinanceMarketService } from '../binance/binanceMarketService';
 import { BinanceExecution } from './binanceExecution';
+import { AccountSyncService } from '../account/accountSyncService';
+import { AlertService } from '../system/alertService';
 
 export const PositionManager = {
   isEmergencyStopped(): boolean {
@@ -19,6 +21,41 @@ export const PositionManager = {
 
   getActivePositions(): Position[] {
     return this.getPositions().filter(p => p.status === 'POSITION_OPEN');
+  },
+
+  checkDailyRiskLimits() {
+    const today = new Date().toISOString().split('T')[0];
+    const riskState = LocalDatabase.get('dailyRiskState') || { date: today, realizedLoss: 0 };
+    
+    // Reset if it's a new day
+    if (riskState.date !== today) {
+      riskState.date = today;
+      riskState.realizedLoss = 0;
+      LocalDatabase.set('dailyRiskState', riskState);
+      
+      // If we were halted because of daily loss, we could theoretically unhalt, but let's require manual unhalt for safety
+    }
+
+    const active = this.getActivePositions();
+    let currentUnrealizedLoss = 0;
+    for (const pos of active) {
+      if (pos.unrealizedPnL < 0) {
+        currentUnrealizedLoss += Math.abs(pos.unrealizedPnL);
+      }
+    }
+
+    const totalLoss = riskState.realizedLoss + currentUnrealizedLoss;
+    
+    const accountState = AccountSyncService.getState();
+    const equity = accountState.balances.find(b => b.asset === 'USDT')?.free || 1000; // Fallback for pure logic
+    
+    const maxLossPercent = parseFloat(process.env.MAX_DAILY_LOSS_PERCENT || '5');
+    const maxLossAmount = (equity * maxLossPercent) / 100;
+    
+    if (totalLoss > maxLossAmount && !this.isEmergencyStopped()) {
+      this.setEmergencyStop(true);
+      AlertService.log('CRITICAL', 'PositionManager', `Daily Loss Limit Exceeded! Total Loss: $${totalLoss.toFixed(2)}. Trading Halted.`);
+    }
   },
 
   async updateUnrealizedPnL() {
@@ -48,6 +85,7 @@ export const PositionManager = {
 
     if (changed) {
       LocalDatabase.set('positions', this.getPositions()); // Save changes
+      this.checkDailyRiskLimits();
     }
   },
 

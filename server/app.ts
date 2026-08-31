@@ -22,6 +22,32 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Phase 11: System & Analytics Endpoints
+import { SystemHealthService } from './services/system/systemHealthService';
+import { AlertService } from './services/system/alertService';
+import { TradeAnalyticsService } from './services/analytics/tradeAnalyticsService';
+
+app.get('/api/system/health', async (req, res) => {
+  try {
+    const health = await SystemHealthService.getHealth();
+    res.json(health);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/system/alerts', (req, res) => {
+  res.json(AlertService.getAlerts());
+});
+
+app.get('/api/analytics/performance', (req, res) => {
+  res.json(TradeAnalyticsService.getAnalytics());
+});
+
+app.get('/api/analytics/equity-curve', (req, res) => {
+  res.json(TradeAnalyticsService.getEquityCurve());
+});
+
 // Binance Market Routes
 import { BinanceMarketService } from './services/binance/binanceMarketService';
 

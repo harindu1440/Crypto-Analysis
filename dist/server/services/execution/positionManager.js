@@ -4,6 +4,8 @@ exports.PositionManager = void 0;
 const database_1 = require("../../config/database");
 const binanceMarketService_1 = require("../binance/binanceMarketService");
 const binanceExecution_1 = require("./binanceExecution");
+const accountSyncService_1 = require("../account/accountSyncService");
+const alertService_1 = require("../system/alertService");
 exports.PositionManager = {
     isEmergencyStopped() {
         const state = database_1.LocalDatabase.get('emergencyState');
@@ -17,6 +19,33 @@ exports.PositionManager = {
     },
     getActivePositions() {
         return this.getPositions().filter(p => p.status === 'POSITION_OPEN');
+    },
+    checkDailyRiskLimits() {
+        const today = new Date().toISOString().split('T')[0];
+        const riskState = database_1.LocalDatabase.get('dailyRiskState') || { date: today, realizedLoss: 0 };
+        // Reset if it's a new day
+        if (riskState.date !== today) {
+            riskState.date = today;
+            riskState.realizedLoss = 0;
+            database_1.LocalDatabase.set('dailyRiskState', riskState);
+            // If we were halted because of daily loss, we could theoretically unhalt, but let's require manual unhalt for safety
+        }
+        const active = this.getActivePositions();
+        let currentUnrealizedLoss = 0;
+        for (const pos of active) {
+            if (pos.unrealizedPnL < 0) {
+                currentUnrealizedLoss += Math.abs(pos.unrealizedPnL);
+            }
+        }
+        const totalLoss = riskState.realizedLoss + currentUnrealizedLoss;
+        const accountState = accountSyncService_1.AccountSyncService.getState();
+        const equity = accountState.balances.find(b => b.asset === 'USDT')?.free || 1000; // Fallback for pure logic
+        const maxLossPercent = parseFloat(process.env.MAX_DAILY_LOSS_PERCENT || '5');
+        const maxLossAmount = (equity * maxLossPercent) / 100;
+        if (totalLoss > maxLossAmount && !this.isEmergencyStopped()) {
+            this.setEmergencyStop(true);
+            alertService_1.AlertService.log('CRITICAL', 'PositionManager', `Daily Loss Limit Exceeded! Total Loss: $${totalLoss.toFixed(2)}. Trading Halted.`);
+        }
     },
     async updateUnrealizedPnL() {
         const active = this.getActivePositions();
@@ -44,6 +73,7 @@ exports.PositionManager = {
         }
         if (changed) {
             database_1.LocalDatabase.set('positions', this.getPositions()); // Save changes
+            this.checkDailyRiskLimits();
         }
     },
     async closePosition(planId) {

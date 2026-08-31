@@ -1,0 +1,32 @@
+.analytics-empty {
+  color: var(--text-secondary);
+  font-style: italic;
+  text-align: center;
+  padding: 16px;
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.analytics-stat {
+  background: var(--surface-2);
+  padding: 12px;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.analytics-stat label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.stat-val {
+  font-size: 1.4rem;
+  font-weight: bold;
+}
