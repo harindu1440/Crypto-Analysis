@@ -269,6 +269,11 @@ app.get('/api/monitoring/status', (req, res) => {
   res.json(GlobalMonitoringService.getStatus());
 });
 
+app.get('/api/monitoring/events', (req, res) => {
+  // Return recent events from notification orchestrator or a mock array for now
+  res.json([]);
+});
+
 app.post('/api/monitoring/assets/:symbol', (req, res) => {
   try {
     GlobalMonitoringService.addAsset(req.params.symbol);
