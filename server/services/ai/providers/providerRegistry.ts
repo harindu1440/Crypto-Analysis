@@ -1,10 +1,19 @@
+/**
+ * ProviderRegistry — Phase 20.2 update
+ *
+ * Initializes all configured AI providers and registers each model
+ * as an independent entry in ModelRegistry for per-model health tracking.
+ */
+
 import { AIProvider } from './provider.interface';
 import { GeminiProvider } from './geminiProvider';
 import { GroqProvider } from './groqProvider';
 import { OpenRouterProvider } from './openRouterProvider';
 import { HuggingFaceProvider } from './huggingFaceProvider';
+import { ModelRegistry, ModelRegistryEntry } from '../modelRegistry';
+import { DynamicModelRouter } from '../dynamicModelRouter';
 
-export type AIRole = 
+export type AIRole =
   | 'INDEPENDENT MARKET ANALYST'
   | 'TECHNICAL ANALYST'
   | 'PRICE ACTION ANALYST'
@@ -26,76 +35,134 @@ export class ProviderRegistry {
 
     this.providers = [];
 
+    // ── Gemini ─────────────────────────────────────────────────────────────────
     const gemini = new GeminiProvider();
+    const geminiPriority = parseInt(process.env.GEMINI_PRIORITY || '1');
     if (gemini.isConfigured()) {
-      this.providers.push({ provider: gemini, role: 'INDEPENDENT MARKET ANALYST', priority: 1 });
+      this.providers.push({ provider: gemini, role: 'INDEPENDENT MARKET ANALYST', priority: geminiPriority });
+      this.registerModel({
+        id: `gemini:${process.env.GEMINI_MODEL || 'gemini-3.6-flash'}`,
+        provider: 'gemini',
+        modelName: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
+        providerInstance: gemini,
+        role: 'INDEPENDENT MARKET ANALYST',
+        priority: geminiPriority,
+        status: 'AVAILABLE',
+        cooldownUntil: null, quotaResetAt: null,
+        consecutiveFailures: 0, totalRequests: 0, successfulRequests: 0,
+        failedRequests: 0, totalLatencyMs: 0,
+        lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null,
+      });
     }
 
+    // ── Groq ───────────────────────────────────────────────────────────────────
     const groq = new GroqProvider();
+    const groqPriority = parseInt(process.env.GROQ_PRIORITY || '2');
     if (groq.isConfigured()) {
-      this.providers.push({ provider: groq, role: 'TECHNICAL ANALYST', priority: 2 });
+      this.providers.push({ provider: groq, role: 'TECHNICAL ANALYST', priority: groqPriority });
+      this.registerModel({
+        id: `groq:${process.env.GROQ_MODEL || 'llama3-70b-8192'}`,
+        provider: 'groq',
+        modelName: process.env.GROQ_MODEL || 'llama3-70b-8192',
+        providerInstance: groq,
+        role: 'TECHNICAL ANALYST',
+        priority: groqPriority,
+        status: 'AVAILABLE',
+        cooldownUntil: null, quotaResetAt: null,
+        consecutiveFailures: 0, totalRequests: 0, successfulRequests: 0,
+        failedRequests: 0, totalLatencyMs: 0,
+        lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null,
+      });
     }
 
+    // ── HuggingFace ────────────────────────────────────────────────────────────
     const hf = new HuggingFaceProvider();
+    const hfPriority = parseInt(process.env.HUGGINGFACE_PRIORITY || '4');
     if (hf.isConfigured()) {
-      this.providers.push({ provider: hf, role: 'MOMENTUM ANALYST', priority: 3 });
+      this.providers.push({ provider: hf, role: 'MOMENTUM ANALYST', priority: hfPriority });
+      this.registerModel({
+        id: `huggingface:${process.env.HF_MODEL || 'meta-llama/Meta-Llama-3-8B-Instruct'}`,
+        provider: 'huggingface',
+        modelName: process.env.HF_MODEL || 'meta-llama/Meta-Llama-3-8B-Instruct',
+        providerInstance: hf,
+        role: 'MOMENTUM ANALYST',
+        priority: hfPriority,
+        status: 'AVAILABLE',
+        cooldownUntil: null, quotaResetAt: null,
+        consecutiveFailures: 0, totalRequests: 0, successfulRequests: 0,
+        failedRequests: 0, totalLatencyMs: 0,
+        lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null,
+      });
     }
 
-    const orModels = (process.env.OPENROUTER_MODELS || 'openrouter/free').split(',').map(s => s.trim());
-    if (orModels.length > 0) {
-      const or1 = new OpenRouterProvider(orModels[0]);
-      if (or1.isConfigured()) {
-        this.providers.push({ provider: or1, role: 'PRICE ACTION ANALYST', priority: 4 });
+    // ── OpenRouter — each model is its own independent entry ──────────────────
+    const orModels = (process.env.OPENROUTER_MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
+    const orPriorityBase = parseInt(process.env.OPENROUTER_PRIORITY || '3');
+    const orRoles: AIRole[] = ['PRICE ACTION ANALYST', 'RISK CHALLENGER'];
+
+    orModels.forEach((modelId, idx) => {
+      const provider = new OpenRouterProvider(modelId);
+      if (provider.isConfigured()) {
+        const role = orRoles[idx] || 'PRICE ACTION ANALYST';
+        const priority = orPriorityBase + idx;
+        this.providers.push({ provider, role, priority });
+        this.registerModel({
+          id: `openrouter:${modelId}`,
+          provider: 'openrouter',
+          modelName: modelId,
+          providerInstance: provider,
+          role,
+          priority,
+          status: 'AVAILABLE',
+          cooldownUntil: null, quotaResetAt: null,
+          consecutiveFailures: 0, totalRequests: 0, successfulRequests: 0,
+          failedRequests: 0, totalLatencyMs: 0,
+          lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null,
+        });
       }
-    }
-    
-    if (orModels.length > 1) {
-      const or2 = new OpenRouterProvider(orModels[1]);
-      if (or2.isConfigured()) {
-        this.providers.push({ provider: or2, role: 'RISK CHALLENGER', priority: 5 });
-      }
-    }
+    });
 
     this.initialized = true;
-    console.log(`[ProviderRegistry] Initialized ${this.providers.length} AI providers.`);
+    const count = ModelRegistry.getAll().length;
+    console.log(`[ProviderRegistry] Initialized ${this.providers.length} providers / ${count} models in registry.`);
+    console.log(`[ProviderRegistry] Models: ${ModelRegistry.getAll().map(m => `${m.id}(${m.status})`).join(', ')}`);
   }
 
+  private static registerModel(entry: ModelRegistryEntry): void {
+    ModelRegistry.register(entry);
+  }
+
+  /** Get all eligible providers (legacy compat for monitoring service) */
   public static getEligibleProviders(): ProviderRegistration[] {
     if (!this.initialized) this.initialize();
-    
     return this.providers.filter(p => {
       const health = p.provider.getHealth();
       return health.status === 'HEALTHY' || health.status === 'DEGRADED';
     }).sort((a, b) => a.priority - b.priority);
   }
 
+  /** Returns false whenever multiple healthy models exist */
   public static isGeminiOnly(): boolean {
     if (!this.initialized) this.initialize();
-    
-    const configured = this.providers.filter(p => p.provider.isConfigured());
-    // If only Gemini is configured, it's Gemini-only
-    if (configured.length === 1 && configured[0].provider.name === 'gemini-provider') return true;
-    
-    // If Gemini is in COOLDOWN but other providers are healthy, switch to multi-model mode
-    const geminiRegistration = configured.find(p => p.provider.name === 'gemini-provider');
-    const geminiHealth = geminiRegistration?.provider.getHealth();
-    const hasHealthyAlternatives = configured.some(
-      p => p.provider.name !== 'gemini-provider' && 
-           (p.provider.getHealth().status === 'HEALTHY' || p.provider.getHealth().status === 'DEGRADED')
-    );
-    
-    if (geminiHealth?.status === 'COOLDOWN' && hasHealthyAlternatives) return false;
-    
-    return configured.length === 1 && configured[0].provider.name === 'gemini-provider';
+    const eligible = ModelRegistry.getEligible();
+    if (eligible.length <= 1) return true;
+    // Check if the only eligible model is Gemini
+    return eligible.every(m => m.provider === 'gemini');
   }
 
+  /** Per-model health for health API and UI */
   public static getProviderHealths() {
     if (!this.initialized) this.initialize();
-    
     return this.providers.map(p => ({
       name: p.provider.name,
       role: p.role,
       health: p.provider.getHealth()
     }));
+  }
+
+  /** Full model-level status for Phase 20.2 UI */
+  public static getRouterStatus() {
+    if (!this.initialized) this.initialize();
+    return DynamicModelRouter.getRouterStatus();
   }
 }

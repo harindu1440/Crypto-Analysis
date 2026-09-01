@@ -176,6 +176,10 @@ export class GeminiProvider extends BaseAIProvider {
     }
     
     if (!GeminiBudgetManager.canMakeRequest()) {
+      const status = GeminiBudgetManager.getStatus();
+      if (status.status === 'QUOTA_EXHAUSTED') {
+        throw new Error('DAILY_QUOTA_EXHAUSTED');
+      }
       throw new Error('Gemini API is unavailable or Quota Exhausted');
     }
 
@@ -186,65 +190,55 @@ export class GeminiProvider extends BaseAIProvider {
 
     const modelToUse = schemaName === 'MasterDecision' ? this.deepModel : this.fastModel;
 
-    let retries = 3;
-    let delay = 3000;
-
-    while (retries >= 0) {
-      try {
-        const response = await this.ai.models.generateContent({
-          model: modelToUse,
-          contents: prompt,
-          config: {
-            systemInstruction: systemPrompt,
-            responseMimeType: 'application/json',
-            responseSchema: schema,
-            temperature: 0.2 // low temp for analytical tasks
-          }
-        });
-        
-        if (!response.text) {
-            throw new Error('Empty response from Gemini');
+    try {
+      const response = await this.ai.models.generateContent({
+        model: modelToUse,
+        contents: prompt,
+        config: {
+          systemInstruction: systemPrompt,
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          temperature: 0.2
         }
-
-        const parsed = JSON.parse(response.text);
-        GeminiBudgetManager.recordRequest(true);
-        this.recordSuccess();
-        return parsed as T;
-      } catch (err: any) {
-        GeminiBudgetManager.recordRequest(false);
-        this.recordFailure(err);
-        retries--;
-        console.error(`[GeminiProvider] Error calling Gemini (Model: ${modelToUse}, Schema: ${schemaName}):`, err.message);
-        
-        // 1. Daily Quota Exhausted
-        if (err.message.includes('GenerateRequestsPerDayPerProjectFreeTier') || (err.message.includes('429') && err.message.includes('quota'))) {
-           GeminiBudgetManager.markQuotaExhausted(true);
-           throw new Error('DAILY_QUOTA_EXHAUSTED'); // Stop retry storm immediately
-        }
-        
-        // 2. Temporary Rate Limit
-        if (err.message.includes('Rate Limit') || err.message.includes('429')) {
-           const retryMatch = err.message.match(/retry in ([\d\.]+)s/);
-           if (retryMatch) {
-             delay = Math.max(delay, (parseFloat(retryMatch[1]) * 1000) + 1000);
-           } else {
-             delay = Math.max(delay, 10000); // Default to 10s backoff for rate limits
-           }
-           GeminiBudgetManager.markQuotaExhausted(false, delay);
-        } else if (err.message.includes('50') || err.message.includes('timeout')) {
-           GeminiBudgetManager.markQuotaExhausted(false, delay);
-        }
-
-        if (retries < 0) {
-          throw err;
-        }
-        
-        console.warn(`[GeminiProvider] Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay = Math.min(delay * 1.5, 30000); // exponential backoff up to 30s
+      });
+      
+      if (!response.text) {
+        throw new Error('Empty response from Gemini');
       }
+
+      const parsed = JSON.parse(response.text);
+      GeminiBudgetManager.recordRequest(true);
+      this.recordSuccess();
+      return parsed as T;
+
+    } catch (err: any) {
+      GeminiBudgetManager.recordRequest(false);
+      this.recordFailure(err);
+      console.error(`[GeminiProvider] Error calling Gemini (Model: ${modelToUse}, Schema: ${schemaName}):`, err.message);
+
+      // ── Classify and rethrow with clean error codes ──────────────────────
+
+      // 1. Daily quota exhausted — DynamicModelRouter will NOT retry Gemini
+      if (
+        err.message?.includes('GenerateRequestsPerDayPerProjectFreeTier') ||
+        err.message?.includes('GenerateRequestsPerDayPerProject') ||
+        err.message?.includes('free_tier_requests') ||
+        (err.message?.includes('429') && err.message?.includes('quota'))
+      ) {
+        GeminiBudgetManager.markQuotaExhausted(true);
+        throw new Error('DAILY_QUOTA_EXHAUSTED');
+      }
+
+      // 2. Temporary rate limit — extract retryDelay if present
+      if (err.message?.includes('429') || err.message?.includes('rate limit') || err.message?.includes('RESOURCE_EXHAUSTED')) {
+        const retryMatch = err.message.match(/retryDelay[":\s]+([0-9.]+)s/);
+        const retrySeconds = retryMatch ? parseFloat(retryMatch[1]) : 30;
+        GeminiBudgetManager.markQuotaExhausted(false, retrySeconds * 1000);
+        throw new Error(`RATE_LIMITED:${retrySeconds}s`);
+      }
+
+      // 3. Server errors / timeout — transient, router may retry same or next model
+      throw err;
     }
-    
-    throw new Error('GeminiProvider failed after retries');
   }
 }

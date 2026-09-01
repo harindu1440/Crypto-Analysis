@@ -16,6 +16,7 @@ export const SystemHealthService = {
     let status = aiBudget.status;
     
     let providers: any[] = [];
+    let routerStatus: any = null;
     
     try {
        providers = ProviderRegistry.getProviderHealths();
@@ -32,6 +33,14 @@ export const SystemHealthService = {
          status = aiBudget.status;
          isHealthy = status === 'HEALTHY' || status === 'DEGRADED';
        }
+
+       // Phase 20.2: Per-model router status
+       routerStatus = ProviderRegistry.getRouterStatus();
+       if (routerStatus?.activeModel) {
+         message = `Active: ${routerStatus.activeModel.provider}/${routerStatus.activeModel.modelName} | ${routerStatus.eligibleCount} model(s) eligible`;
+         isHealthy = true;
+         status = 'HEALTHY';
+       }
     } catch (e) {
        // Provider Registry not initialized yet
     }
@@ -41,6 +50,7 @@ export const SystemHealthService = {
       isHealthy,
       message,
       providers,
+      routerStatus,
       dailyRequestsCount: aiBudget.stats ? aiBudget.stats.requestsToday : 0,
       quotaExhausted: aiBudget.status === 'QUOTA_EXHAUSTED'
     };

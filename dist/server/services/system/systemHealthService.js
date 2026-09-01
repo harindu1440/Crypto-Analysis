@@ -16,6 +16,7 @@ exports.SystemHealthService = {
         let message = 'AI is OFFLINE';
         let status = aiBudget.status;
         let providers = [];
+        let routerStatus = null;
         try {
             providers = providerRegistry_1.ProviderRegistry.getProviderHealths();
             const healthyProviders = providers.filter(p => p.health.status === 'HEALTHY' || p.health.status === 'DEGRADED');
@@ -29,6 +30,13 @@ exports.SystemHealthService = {
                 status = aiBudget.status;
                 isHealthy = status === 'HEALTHY' || status === 'DEGRADED';
             }
+            // Phase 20.2: Per-model router status
+            routerStatus = providerRegistry_1.ProviderRegistry.getRouterStatus();
+            if (routerStatus?.activeModel) {
+                message = `Active: ${routerStatus.activeModel.provider}/${routerStatus.activeModel.modelName} | ${routerStatus.eligibleCount} model(s) eligible`;
+                isHealthy = true;
+                status = 'HEALTHY';
+            }
         }
         catch (e) {
             // Provider Registry not initialized yet
@@ -38,6 +46,7 @@ exports.SystemHealthService = {
             isHealthy,
             message,
             providers,
+            routerStatus,
             dailyRequestsCount: aiBudget.stats ? aiBudget.stats.requestsToday : 0,
             quotaExhausted: aiBudget.status === 'QUOTA_EXHAUSTED'
         };

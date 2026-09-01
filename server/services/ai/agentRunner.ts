@@ -1,25 +1,28 @@
+/**
+ * AgentRunner — Phase 20.2 (Dynamic Model Router)
+ *
+ * All AI calls now route through DynamicModelRouter.executeWithFailover().
+ * Provider failures never produce NO_TRADE until all eligible models are exhausted.
+ */
 import { AIAgent } from './aiAgent';
-import { GeminiProvider } from './providers/geminiProvider';
 import { ProviderRegistry } from './providers/providerRegistry';
 import { ConsensusEngine } from './consensusEngine';
 import { AnalysisService } from '../analysis/analysisService';
-import { MasterDecisionOutput, TradeSide } from './schemas/types';
+import { MasterDecisionOutput } from './schemas/types';
 import { OpportunityService } from '../opportunities/opportunityService';
 import { TradeOpportunity } from '../opportunities/types';
 import { SignalQualityService } from './signalQualityService';
 import { AdaptiveIntelligenceService } from './adaptiveIntelligenceService';
 import { EventBus } from '../system/eventBus';
-import crypto from 'crypto';
+import { DynamicModelRouter, AIUnavailableError } from './dynamicModelRouter';
+import { ModelRegistry } from './modelRegistry';
 import { AIPerformanceTracker } from './aiPerformanceTracker';
+import { PROMPTS } from './prompts';
+import { ROLE_PROMPTS } from './prompts/roles';
+import crypto from 'crypto';
 
-// Initialize provider registry
+// Initialize provider registry (also populates ModelRegistry)
 ProviderRegistry.initialize();
-
-const legacyGeminiProvider = new GeminiProvider();
-const legacyAgent = new AIAgent(legacyGeminiProvider);
-
-let aiSystemPaused = false;
-let aiSystemPauseTimer: NodeJS.Timeout | null = null;
 
 // In-memory lock to prevent duplicate concurrent analysis
 const activeAnalysisLocks = new Set<string>();
@@ -27,16 +30,35 @@ const activeAnalysisLocks = new Set<string>();
 // Simple in-memory cache to store the latest analysis per symbol
 const latestAnalysisResults = new Map<string, MasterDecisionOutput>();
 
-export const AgentRunner = {
-  
-  async runAnalysis(symbol: string, triggerPayload?: any): Promise<MasterDecisionOutput> {
-    if (aiSystemPaused) {
-      console.warn(`[AgentRunner] AI System is currently paused due to rate limits or failures. Skipping analysis for ${symbol}.`);
-      throw new Error('AI System Paused');
-    }
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function makeUnavailableResult(symbol: string, attemptedModels: string[]): MasterDecisionOutput {
+  return {
+    analysisId: crypto.randomUUID(),
+    symbol,
+    timestamp: Date.now(),
+    provider: 'AI_UNAVAILABLE',
+    decision: 'NO_TRADE',
+    confidence: 0,
+    timeframe: '1h',
+    marketBias: 'NEUTRAL',
+    reasoning: `AI_UNAVAILABLE: All eligible models exhausted (${attemptedModels.join(', ')}). Existing opportunities tracked deterministically.`,
+    supportingFactors: [],
+    conflictingFactors: ['All AI models unavailable'],
+    riskLevel: 'LOW',
+    tradeCandidate: null,
+    agentResults: {} as any,
+    consensusScore: '0/0'
+  };
+}
+
+// ─── AgentRunner ──────────────────────────────────────────────────────────────
+
+export const AgentRunner = {
+
+  async runAnalysis(symbol: string, triggerPayload?: any): Promise<MasterDecisionOutput> {
     const lockKey = `${symbol}-analysis`;
-    
+
     if (activeAnalysisLocks.has(lockKey)) {
       throw new Error(`Analysis for ${symbol} is already in progress.`);
     }
@@ -45,129 +67,180 @@ export const AgentRunner = {
     console.log(`[AgentRunner] Started AI analysis pipeline for ${symbol}`);
 
     try {
-      // 1. Get Normalized Market Data Snapshot
+      // ── 1. Get Market Data Snapshot ─────────────────────────────────────────
       const data = await AnalysisService.getAnalysisSnapshot(symbol, ['15m', '1h', '4h', '1d']);
-      
-      // 2. Run Lightweight Screening First
-      // Pick the best healthy provider for screening — prefer Gemini, fallback to others
-      let screeningAgent = legacyAgent;
-      const geminiHealth = legacyGeminiProvider.getHealth();
-      if (geminiHealth.status === 'COOLDOWN') {
-        const eligible = ProviderRegistry.getEligibleProviders();
-        const fallbackProvider = eligible.find(p => p.provider.name !== 'gemini-provider');
-        if (fallbackProvider) {
-          screeningAgent = new AIAgent(fallbackProvider.provider);
-          console.log(`[AgentRunner] Gemini in COOLDOWN. Using ${fallbackProvider.provider.name} for screening.`);
-        } else {
-          console.warn(`[AgentRunner] Gemini in COOLDOWN and no fallback providers available. Skipping ${symbol}.`);
-          throw new Error('DAILY_QUOTA_EXHAUSTED');
+
+      // ── 2. Lightweight Screening via DynamicModelRouter ─────────────────────
+      // The router automatically fails over to the next best model if needed.
+      let screeningResult: any;
+      let screeningModelId: string;
+      try {
+        const routerResult = await DynamicModelRouter.executeWithFailover<any>(
+          JSON.stringify(data),
+          'ScreeningAnalysis',
+          `${PROMPTS.screening.description}\n${PROMPTS.screening.instructions}`,
+          `Screening:${symbol}`
+        );
+        screeningResult = routerResult.data;
+        screeningModelId = routerResult.modelId;
+      } catch (err) {
+        if (err instanceof AIUnavailableError) {
+          console.warn(`[AgentRunner] AI_UNAVAILABLE during screening for ${symbol}.`);
+          return makeUnavailableResult(symbol, err.attemptedModels);
         }
+        throw err;
       }
-      
-      const screening = await screeningAgent.analyzeScreening(data);
-      if (!screening.passScreening || screening.status === 'ERROR') {
+
+      // ── 3. Screening Gate ────────────────────────────────────────────────────
+      if (!screeningResult?.passScreening || screeningResult?.status === 'ERROR') {
         const result: MasterDecisionOutput = {
           analysisId: crypto.randomUUID(),
           symbol,
           timestamp: Date.now(),
-          provider: 'Multi-Model-Orchestrator',
+          provider: screeningModelId,
           decision: 'NO_TRADE',
           confidence: 0,
           timeframe: '1h',
           marketBias: 'NEUTRAL',
-          reasoning: screening.status === 'ERROR' ? 'Screening failed (Quota/Error).' : 'Screening rejected: No meaningful setup forming.',
+          reasoning: 'Screening rejected: No meaningful setup forming.',
           supportingFactors: [],
           conflictingFactors: [],
           riskLevel: 'LOW',
           tradeCandidate: null,
-          agentResults: { screening } as any,
+          agentResults: { screening: screeningResult } as any,
           consensusScore: '0/0'
         };
-        console.log(`[AgentRunner] Completed AI screening for ${symbol}. Decision: NO_TRADE (${result.reasoning})`);
+        console.log(`[AgentRunner] Screening REJECTED for ${symbol}. No trade setup forming.`);
         return result;
       }
-      
+
+      // ── 4. Deep Analysis Pipeline ────────────────────────────────────────────
       let finalResult: MasterDecisionOutput;
-      
+
       const minModels = parseInt(process.env.AI_MIN_MODELS || '2');
       const minConsensusPercent = parseInt(process.env.AI_MIN_CONSENSUS_PERCENT || '60');
-      
+      const eligibleModels = ModelRegistry.getEligible();
+
       if (ProviderRegistry.isGeminiOnly()) {
-        console.log(`[AgentRunner] Running Legacy Gemini-Only Pipeline for ${symbol}`);
-        // Run independent specialist agents sequentially
-        const marketContext = await legacyAgent.analyzeMarketContext(data);
-        const technical = await legacyAgent.analyzeTechnicals(data);
-        const pattern = await legacyAgent.analyzePatterns(data);
-        
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        const timeframe = await legacyAgent.analyzeTimeframes(data);
-        const liquidity = await legacyAgent.analyzeLiquidity(data);
-        const sentiment = await legacyAgent.analyzeSentiment(data);
+        // ── Legacy single-model pipeline (each step through router) ────────────
+        console.log(`[AgentRunner] Running Single-Model Pipeline for ${symbol} (via router)`);
 
-        const specialistResults = { marketContext, technical, pattern, timeframe, liquidity, sentiment };
+        try {
+          const [mcRes, techRes, patRes] = await Promise.all([
+            DynamicModelRouter.executeWithFailover<any>(JSON.stringify(data), 'MarketContext', `${PROMPTS.marketContext.description}\n${PROMPTS.marketContext.instructions}`, `MarketContext:${symbol}`),
+            DynamicModelRouter.executeWithFailover<any>(JSON.stringify(data), 'TechnicalAnalysis', `${PROMPTS.technical.description}\n${PROMPTS.technical.instructions}`, `Technical:${symbol}`),
+            DynamicModelRouter.executeWithFailover<any>(JSON.stringify(data), 'PatternAnalysis', `${PROMPTS.pattern.description}\n${PROMPTS.pattern.instructions}`, `Pattern:${symbol}`)
+          ]);
 
-        const risk = await legacyAgent.analyzeRisk(data, specialistResults);
-        const allAgentResults = { ...specialistResults, risk };
+          // Small breather between batches for free-tier rate limits
+          await new Promise(resolve => setTimeout(resolve, 1500));
 
-        const masterDecisionRaw = await legacyAgent.makeMasterDecision(data, allAgentResults);
+          const [tfRes, liqRes, sentRes] = await Promise.all([
+            DynamicModelRouter.executeWithFailover<any>(JSON.stringify(data), 'TimeframeAnalysis', `${PROMPTS.timeframe.description}\n${PROMPTS.timeframe.instructions}`, `Timeframe:${symbol}`),
+            DynamicModelRouter.executeWithFailover<any>(JSON.stringify(data), 'LiquidityAnalysis', `${PROMPTS.liquidity.description}\n${PROMPTS.liquidity.instructions}`, `Liquidity:${symbol}`),
+            DynamicModelRouter.executeWithFailover<any>(JSON.stringify(data), 'SentimentAnalysis', `${PROMPTS.sentiment.description}\n${PROMPTS.sentiment.instructions}`, `Sentiment:${symbol}`)
+          ]);
 
-        let bullishCount = 0;
-        let bearishCount = 0;
-        const biases = [
-          marketContext.broaderTrend,
-          technical.technicalBias,
-          pattern.bias,
-          liquidity.bias,
-          sentiment.bias
-        ];
-        
-        biases.forEach(b => {
-          if (b === 'BULLISH') bullishCount++;
-          else if (b === 'BEARISH') bearishCount++;
-        });
-        
-        const maxScore = Math.max(bullishCount, bearishCount);
-        const consensusScore = `${maxScore}/${biases.length}`;
+          const marketContext = mcRes.data;
+          const technical = techRes.data;
+          const pattern = patRes.data;
+          const timeframe = tfRes.data;
+          const liquidity = liqRes.data;
+          const sentiment = sentRes.data;
+          const specialistResults = { marketContext, technical, pattern, timeframe, liquidity, sentiment };
 
-        finalResult = {
-          analysisId: crypto.randomUUID(),
-          symbol,
-          timestamp: Date.now(),
-          provider: legacyGeminiProvider.name,
-          ...masterDecisionRaw,
-          agentResults: allAgentResults,
-          consensusScore
-        };
+          const riskRes = await DynamicModelRouter.executeWithFailover<any>(
+            JSON.stringify({ data, otherAnalysis: specialistResults }),
+            'RiskAnalysis',
+            `${PROMPTS.risk.description}\n${PROMPTS.risk.instructions}`,
+            `Risk:${symbol}`
+          );
+          const risk = riskRes.data;
+          const allAgentResults = { ...specialistResults, risk };
+
+          const masterRes = await DynamicModelRouter.executeWithFailover<any>(
+            JSON.stringify({ data, agentResults: allAgentResults }),
+            'MasterDecision',
+            `${PROMPTS.master.description}\n${PROMPTS.master.instructions}`,
+            `MasterDecision:${symbol}`
+          );
+          const masterDecisionRaw = masterRes.data;
+
+          const biases = [
+            marketContext.broaderTrend,
+            technical.technicalBias,
+            pattern.bias,
+            liquidity.bias,
+            sentiment.bias
+          ];
+          let bullishCount = 0, bearishCount = 0;
+          biases.forEach(b => {
+            if (b === 'BULLISH') bullishCount++;
+            else if (b === 'BEARISH') bearishCount++;
+          });
+          const consensusScore = `${Math.max(bullishCount, bearishCount)}/${biases.length}`;
+
+          finalResult = {
+            analysisId: crypto.randomUUID(),
+            symbol,
+            timestamp: Date.now(),
+            provider: masterRes.modelId,
+            ...masterDecisionRaw,
+            agentResults: allAgentResults,
+            consensusScore
+          };
+
+        } catch (err) {
+          if (err instanceof AIUnavailableError) {
+            console.warn(`[AgentRunner] AI_UNAVAILABLE during full pipeline for ${symbol}.`);
+            return makeUnavailableResult(symbol, err.attemptedModels);
+          }
+          throw err;
+        }
+
       } else {
-        console.log(`[AgentRunner] Running Multi-Model Parallel Pipeline for ${symbol}`);
-        const eligibleProviders = ProviderRegistry.getEligibleProviders();
-        
-        const promises = eligibleProviders.map(p => 
-           legacyAgent.generateRoleDecision(data, p.role, p.provider)
-        );
-        
+        // ── Multi-Model Parallel Pipeline ───────────────────────────────────────
+        console.log(`[AgentRunner] Running Multi-Model Parallel Pipeline for ${symbol} (${eligibleModels.length} models)`);
+
+        const modelEntries = ModelRegistry.getEligible();
+        const rolePromptKeys = Object.keys(ROLE_PROMPTS);
+
+        const promises = modelEntries.map((entry, idx) => {
+          const role = entry.role;
+          const roleConfig = ROLE_PROMPTS[role];
+          if (!roleConfig) return Promise.reject(new Error(`Unknown role: ${role}`));
+
+          return DynamicModelRouter.executeWithFailover<any>(
+            JSON.stringify(data),
+            'MasterDecision',
+            `${roleConfig.description}\n${roleConfig.instructions}`,
+            `RoleDecision[${role}]:${symbol}`
+          ).then(res => ({ ...res.data, provider: res.modelId, role }));
+        });
+
         const settled = await Promise.allSettled(promises);
         const validDecisions: MasterDecisionOutput[] = [];
-        
+
         settled.forEach((res, i) => {
-           if (res.status === 'fulfilled') {
-              validDecisions.push(res.value);
-              // Track successful model performance
-              AIPerformanceTracker.trackDecision(res.value);
-           } else {
-              console.warn(`[AgentRunner] Provider ${eligibleProviders[i].provider.name} failed during Multi-Model Pipeline.`);
-           }
+          if (res.status === 'fulfilled') {
+            validDecisions.push(res.value);
+            AIPerformanceTracker.trackDecision(res.value);
+          } else {
+            console.warn(`[AgentRunner] Model ${modelEntries[i]?.id} failed in Multi-Model pipeline: ${(res as any).reason?.message}`);
+          }
         });
-        
+
+        if (validDecisions.length === 0) {
+          console.warn(`[AgentRunner] All models failed in parallel pipeline for ${symbol}. Returning AI_UNAVAILABLE.`);
+          return makeUnavailableResult(symbol, modelEntries.map(e => e.id));
+        }
+
         finalResult = ConsensusEngine.calculateConsensus(symbol, validDecisions, minModels, minConsensusPercent);
-        
-        // Track the final consensus
         AIPerformanceTracker.trackConsensus(finalResult, validDecisions);
       }
 
-      console.log(`[AgentRunner] Completed AI analysis for ${symbol}. Decision: ${finalResult.decision}`);
-      
+      console.log(`[AgentRunner] Completed AI analysis for ${symbol}. Decision: ${finalResult.decision} | Provider: ${finalResult.provider}`);
+
       // Store in memory cache
       latestAnalysisResults.set(symbol, finalResult);
 
@@ -178,16 +251,17 @@ export const AgentRunner = {
         payload: {
           decision: finalResult.decision,
           confidence: finalResult.confidence,
+          activeModel: finalResult.provider,
           triggerPayload
         }
       });
 
-      // Deterministic Validation & R:R recalculation
+      // ── 5. Deterministic Risk Validation ─────────────────────────────────────
       if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate) {
         let valid = true;
         const c = finalResult.tradeCandidate;
         const entryPrice = (c.entryZone.min + c.entryZone.max) / 2;
-        
+
         if (c.side === 'LONG') {
           if (c.stopLoss >= entryPrice) valid = false;
           c.takeProfitLevels.forEach(tp => { if (tp <= entryPrice) valid = false; });
@@ -200,8 +274,7 @@ export const AgentRunner = {
           const risk = Math.abs(entryPrice - c.stopLoss);
           const reward = Math.abs(c.takeProfitLevels[0] - entryPrice);
           c.riskRewardRatio = risk > 0 ? parseFloat((reward / risk).toFixed(2)) : 0;
-          
-          if (c.riskRewardRatio < 1.0) valid = false; // Reject poor R:R
+          if (c.riskRewardRatio < 1.0) valid = false;
         }
 
         if (!valid) {
@@ -211,7 +284,7 @@ export const AgentRunner = {
         }
       }
 
-      // Phase 15: AI Signal Quality & Validation
+      // ── 6. Signal Quality ─────────────────────────────────────────────────────
       const qualityEval = SignalQualityService.evaluateOpportunity(finalResult, data);
 
       if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate) {
@@ -222,16 +295,14 @@ export const AgentRunner = {
         }
       }
 
-      // Phase 19: Adaptive Intelligence Calibration
+      // ── 7. Adaptive Intelligence Calibration ──────────────────────────────────
       let adaptiveCalibration: any = null;
       if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate && qualityEval.isQualified) {
         adaptiveCalibration = AdaptiveIntelligenceService.calibrateSignal(finalResult, qualityEval, data);
-        
-        // Update the final result with calibrated confidence
         finalResult.confidence = adaptiveCalibration.calibratedConfidence;
       }
 
-      // Phase 12 & 15 & 19: Generate Global Trade Opportunity if valid & qualified
+      // ── 8. Publish Trade Opportunity ──────────────────────────────────────────
       if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate && qualityEval.isQualified) {
         const c = finalResult.tradeCandidate;
         const opp: TradeOpportunity & { adaptiveIntelligence?: any } = {
@@ -239,7 +310,7 @@ export const AgentRunner = {
           symbol,
           direction: c.side,
           setup: `${finalResult.marketBias} Consensus`,
-          currentPrice: c.entryZone.max, // Approximation
+          currentPrice: c.entryZone.max,
           entryZone: c.entryZone,
           entryPrice: (c.entryZone.min + c.entryZone.max) / 2,
           stopLoss: c.stopLoss,
@@ -255,7 +326,6 @@ export const AgentRunner = {
           sentimentSummary: finalResult.agentResults?.sentiment?.sentimentReasoning || 'Multi-Model Consensus',
           reason: finalResult.reasoning,
           invalidationCondition: c.invalidationCondition,
-          
           agents: [
             { name: 'Market Structure', bias: finalResult.agentResults?.marketContext?.broaderTrend || 'NEUTRAL', explanation: finalResult.agentResults?.marketContext?.marketCondition || 'N/A' },
             { name: 'Technical Analysis', bias: finalResult.agentResults?.technical?.technicalBias || 'NEUTRAL', explanation: finalResult.agentResults?.technical?.technicalReasoning || 'N/A' },
@@ -275,7 +345,6 @@ export const AgentRunner = {
             change24h: data.market.change24h,
             volatility: data.timeframes['1h']?.volatility.level || 'MEDIUM'
           },
-
           qualityScore: adaptiveCalibration ? adaptiveCalibration.calibratedQualityScore : qualityEval.score,
           qualityBreakdown: qualityEval.breakdown,
           rejectionReasons: qualityEval.rejectionReasons,
@@ -283,73 +352,17 @@ export const AgentRunner = {
           fingerprint: `${symbol}-${c.side}-${c.timeframe}-${qualityEval.marketRegime}`,
           version: 1,
           updatedAt: Date.now(),
-          
           createdAt: Date.now(),
-          expiresAt: Date.now() + (6 * 60 * 60 * 1000), // 6 hours
+          expiresAt: Date.now() + (6 * 60 * 60 * 1000),
           status: 'QUALIFIED'
         };
         OpportunityService.addOpportunity(opp);
       }
 
       return finalResult;
+
     } catch (e: any) {
       console.error(`[AgentRunner] Analysis failed for ${symbol}:`, e.message);
-      
-      if (e.message?.includes('DAILY_QUOTA_EXHAUSTED')) {
-        // Check if we have other healthy providers available
-        const healthyAlternatives = ProviderRegistry.getEligibleProviders()
-          .filter(p => p.provider.name !== 'gemini-provider');
-        
-        if (healthyAlternatives.length > 0) {
-          console.warn(`[AgentRunner] Gemini quota exhausted for ${symbol}, but ${healthyAlternatives.length} alternative provider(s) exist. Will use them next cycle.`);
-        } else {
-          console.warn(`[AgentRunner] DAILY QUOTA EXHAUSTED for ${symbol} with no alternatives. Marking as NO_TRADE.`);
-        }
-        
-        return {
-          analysisId: crypto.randomUUID(),
-          symbol,
-          timestamp: Date.now(),
-          provider: 'Multi-Model-Orchestrator',
-          decision: 'NO_TRADE',
-          confidence: 0,
-          timeframe: '1h',
-          marketBias: 'NEUTRAL',
-          reasoning: healthyAlternatives.length > 0
-            ? `ANALYSIS_INCOMPLETE: Gemini Quota Exhausted. Switching to alternative providers (${healthyAlternatives.map(p => p.provider.name).join(', ')}) next cycle.`
-            : 'ANALYSIS_INCOMPLETE: All AI quotas exhausted. Existing opportunities tracked deterministically.',
-          supportingFactors: [],
-          conflictingFactors: ['API Quota Exhausted'],
-          riskLevel: 'LOW',
-          tradeCandidate: null,
-          agentResults: {} as any,
-          consensusScore: '0/0'
-        };
-      }
-      
-      // Only pause the entire AI system if ALL providers are failing (not just Gemini)
-      if (e.message?.includes('429') || e.message?.includes('500') || e.message?.includes('RESOURCE_EXHAUSTED') || e.message?.includes('Quota Exhausted')) {
-        const healthyProviders = ProviderRegistry.getEligibleProviders();
-        if (healthyProviders.length === 0 && !aiSystemPaused) {
-          console.warn('[AgentRunner] ⚠️ All AI providers degraded. Pausing new AI requests for 60 seconds.');
-          aiSystemPaused = true;
-          
-          EventBus.publish({
-            eventType: 'SYSTEM_ALERT',
-            source: 'AgentRunner',
-            payload: { message: 'AI System Degraded: All providers unavailable. Market monitoring continues.' }
-          });
-
-          if (aiSystemPauseTimer) clearTimeout(aiSystemPauseTimer);
-          aiSystemPauseTimer = setTimeout(() => {
-            console.log('[AgentRunner] 🟢 Resuming AI requests.');
-            aiSystemPaused = false;
-          }, 60000);
-        } else if (healthyProviders.length > 0) {
-          console.log(`[AgentRunner] Gemini failed but ${healthyProviders.length} provider(s) still healthy. AI system remains active.`);
-        }
-      }
-      
       throw e;
     } finally {
       activeAnalysisLocks.delete(lockKey);
@@ -358,5 +371,10 @@ export const AgentRunner = {
 
   getLatestAnalysis(symbol: string): MasterDecisionOutput | null {
     return latestAnalysisResults.get(symbol) || null;
+  },
+
+  /** Expose router status for health checks */
+  getRouterStatus() {
+    return DynamicModelRouter.getRouterStatus();
   }
 };

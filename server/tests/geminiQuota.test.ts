@@ -1,8 +1,13 @@
+/**
+ * geminiQuota.test.ts — Updated for Phase 20.2
+ *
+ * Tests that GeminiBudgetManager correctly tracks quota and that
+ * GeminiProvider throws proper error codes for DynamicModelRouter to classify.
+ */
 import { GeminiBudgetManager } from '../services/ai/geminiBudgetManager';
 import { GeminiProvider } from '../services/ai/providers/geminiProvider';
 import { AIAgent } from '../services/ai/aiAgent';
-import { AgentRunner } from '../services/ai/agentRunner';
-import { AnalysisService } from '../services/analysis/analysisService';
+import { ModelRegistry } from '../services/ai/modelRegistry';
 
 jest.mock('../services/analysis/analysisService', () => ({
   AnalysisService: {
@@ -34,16 +39,35 @@ describe('Gemini Quota Orchestration', () => {
     expect(GeminiBudgetManager.getStatus().status).toBe('QUOTA_EXHAUSTED');
   });
 
-  test('AgentRunner halts quickly if Screening fails due to Quota', async () => {
+  test('GeminiProvider throws DAILY_QUOTA_EXHAUSTED when budget is exhausted', async () => {
+    GeminiBudgetManager.markQuotaExhausted(true);
     const provider = new GeminiProvider();
-    
-    // Mock the provider to throw a DAILY_QUOTA_EXHAUSTED error during screening
+    // When budget is exhausted, should immediately throw DAILY_QUOTA_EXHAUSTED
+    await expect(provider.generateObject('test', 'ScreeningAnalysis')).rejects.toThrow('DAILY_QUOTA_EXHAUSTED');
+  });
+
+  test('ModelRegistry correctly classifies DAILY_QUOTA_EXHAUSTED as QUOTA_EXHAUSTED', () => {
+    const errClass = ModelRegistry.classifyError(new Error('DAILY_QUOTA_EXHAUSTED'));
+    expect(errClass).toBe('QUOTA_EXHAUSTED');
+  });
+
+  test('ModelRegistry correctly classifies rate limit 429 as RATE_LIMITED', () => {
+    const errClass = ModelRegistry.classifyError(new Error('429 Too Many Requests'));
+    expect(errClass).toBe('RATE_LIMITED');
+  });
+
+  test('ModelRegistry correctly classifies GenerateRequestsPerDayPerProjectFreeTier as QUOTA_EXHAUSTED', () => {
+    const errClass = ModelRegistry.classifyError(new Error('GenerateRequestsPerDayPerProjectFreeTier limit exceeded'));
+    expect(errClass).toBe('QUOTA_EXHAUSTED');
+  });
+
+  test('AIAgent screening returns ERROR on provider failure', async () => {
+    const provider = new GeminiProvider();
     jest.spyOn(provider, 'generateObject').mockRejectedValueOnce(new Error('DAILY_QUOTA_EXHAUSTED'));
 
     const agent = new AIAgent(provider);
-    
     const screening = await agent.analyzeScreening({} as any);
-    
+
     expect(screening.status).toBe('ERROR');
     expect(screening.passScreening).toBe(false);
   });
