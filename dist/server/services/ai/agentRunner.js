@@ -9,6 +9,7 @@ const geminiProvider_1 = require("./providers/geminiProvider");
 const analysisService_1 = require("../analysis/analysisService");
 const opportunityService_1 = require("../opportunities/opportunityService");
 const signalQualityService_1 = require("./signalQualityService");
+const adaptiveIntelligenceService_1 = require("./adaptiveIntelligenceService");
 const crypto_1 = __importDefault(require("crypto"));
 const provider = new geminiProvider_1.GeminiProvider();
 const agent = new aiAgent_1.AIAgent(provider);
@@ -28,14 +29,15 @@ exports.AgentRunner = {
             // 1. Get Normalized Market Data Snapshot
             const data = await analysisService_1.AnalysisService.getAnalysisSnapshot(symbol, ['15m', '1h', '4h', '1d']);
             // 2. Run independent specialist agents concurrently
-            const [marketContext, technical, pattern, timeframe, liquidity, sentiment] = await Promise.all([
-                agent.analyzeMarketContext(data),
-                agent.analyzeTechnicals(data),
-                agent.analyzePatterns(data),
-                agent.analyzeTimeframes(data),
-                agent.analyzeLiquidity(data),
-                agent.analyzeSentiment(data)
-            ]);
+            // Run independent specialist agents sequentially or in small batches to respect Gemini Free Tier 15 RPM limit
+            const marketContext = await agent.analyzeMarketContext(data);
+            const technical = await agent.analyzeTechnicals(data);
+            const pattern = await agent.analyzePatterns(data);
+            // Add a small 2-second delay to let the bucket refill slightly
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const timeframe = await agent.analyzeTimeframes(data);
+            const liquidity = await agent.analyzeLiquidity(data);
+            const sentiment = await agent.analyzeSentiment(data);
             const specialistResults = { marketContext, technical, pattern, timeframe, liquidity, sentiment };
             // 3. Run Risk Analysis (which needs the other specialist results)
             const risk = await agent.analyzeRisk(data, specialistResults);
@@ -113,7 +115,14 @@ exports.AgentRunner = {
                     finalResult.tradeCandidate = null;
                 }
             }
-            // Phase 12 & 15: Generate Global Trade Opportunity if valid & qualified
+            // Phase 19: Adaptive Intelligence Calibration
+            let adaptiveCalibration = null;
+            if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate && qualityEval.isQualified) {
+                adaptiveCalibration = adaptiveIntelligenceService_1.AdaptiveIntelligenceService.calibrateSignal(finalResult, qualityEval, data);
+                // Update the final result with calibrated confidence
+                finalResult.confidence = adaptiveCalibration.calibratedConfidence;
+            }
+            // Phase 12 & 15 & 19: Generate Global Trade Opportunity if valid & qualified
             if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate && qualityEval.isQualified) {
                 const c = finalResult.tradeCandidate;
                 const opp = {
@@ -156,9 +165,10 @@ exports.AgentRunner = {
                         change24h: data.market.change24h,
                         volatility: data.timeframes['1h']?.volatility.level || 'MEDIUM'
                     },
-                    qualityScore: qualityEval.score,
+                    qualityScore: adaptiveCalibration ? adaptiveCalibration.calibratedQualityScore : qualityEval.score,
                     qualityBreakdown: qualityEval.breakdown,
                     rejectionReasons: qualityEval.rejectionReasons,
+                    adaptiveIntelligence: adaptiveCalibration,
                     fingerprint: `${symbol}-${c.side}-${c.timeframe}-${qualityEval.marketRegime}`,
                     version: 1,
                     updatedAt: Date.now(),

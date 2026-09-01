@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, LineChart, Activity, Radio, Star, Settings, FileClock } from 'lucide-react';
+import { LayoutDashboard, LineChart, Activity, Radio, Star, Settings, FileClock, Brain } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
   const navItems = [
@@ -9,6 +9,7 @@ export const Sidebar: React.FC = () => {
     { name: 'Analysis', path: '/analysis', icon: <Activity size={20} /> },
     { name: 'Signals', path: '/signals', icon: <Radio size={20} /> },
     { name: 'Backtest', path: '/backtest', icon: <FileClock size={20} /> },
+    { name: 'Intelligence', path: '/intelligence', icon: <Brain size={20} /> },
     { name: 'Watchlist', path: '/watchlist', icon: <Star size={20} /> },
     { name: 'Settings', path: '/settings', icon: <Settings size={20} /> },
   ];

@@ -37,6 +37,26 @@ const GLOSSARY = {
   'TAKE PROFIT': {
     beginner: "Your target price. When the price hits this level, the trade automatically closes to secure your profit.",
     advanced: "The target level for partial or full position exit based on structural resistance/support."
+  },
+  CALIBRATION: {
+    beginner: "How well the AI's confidence matches reality. If the AI says it's 80% sure, it should win 80% of the time.",
+    advanced: "The statistical measurement of AI prediction confidence against historically observed win rates."
+  },
+  'ADAPTIVE CONFIDENCE': {
+    beginner: "The AI's confidence adjusted by how well it has performed on similar setups in the past.",
+    advanced: "Confidence score recalibrated based on the historical expectancy of identical market regimes and symbols."
+  },
+  'SAMPLE SIZE': {
+    beginner: "How many times this exact setup has happened before. A larger number means you can trust the stats more.",
+    advanced: "The number of historical observations used to calculate the adaptive profile and expectancy."
+  },
+  'AI DRIFT': {
+    beginner: "When the AI starts performing noticeably worse (or better) than its usual average.",
+    advanced: "Statistical deviation of recent AI performance metrics (win rate, calibration) compared to the baseline moving average."
+  },
+  EXPECTANCY: {
+    beginner: "How much you can expect to make on average every time you take this trade, factoring in wins and losses.",
+    advanced: "The mathematical expected return per trade, calculated as: (Win Rate × Average R) - (Loss Rate × 1R)."
   }
 };
 

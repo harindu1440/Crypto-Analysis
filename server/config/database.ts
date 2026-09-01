@@ -20,6 +20,11 @@ export interface LocalDatabaseSchema {
   historicalData: Record<string, any>; // Cache for OHLCV
   backtests: any[];
   backtestJobs: Record<string, any>;
+  adaptiveProfiles: Record<string, any>; // Cache for symbol/tf/regime profiles
+  agentPerformance: any[]; // Agent historical reliability tracking
+  calibrationProfiles: any[]; // Quality and confidence bins
+  aiDriftEvents: any[]; // Audit log of performance drifts
+  adaptiveAuditLogs: any[]; // Ledger of adaptive score adjustments
 }
 
 export class LocalDatabase {
@@ -43,7 +48,12 @@ export class LocalDatabase {
     userPreferences: {},
     historicalData: {},
     backtests: [],
-    backtestJobs: {}
+    backtestJobs: {},
+    adaptiveProfiles: {},
+    agentPerformance: [],
+    calibrationProfiles: [],
+    aiDriftEvents: [],
+    adaptiveAuditLogs: []
   };
 
   public static initialize() {
@@ -74,6 +84,11 @@ export class LocalDatabase {
       if (!this.data.historicalData) this.data.historicalData = {};
       if (!this.data.backtests) this.data.backtests = [];
       if (!this.data.backtestJobs) this.data.backtestJobs = {};
+      if (!this.data.adaptiveProfiles) this.data.adaptiveProfiles = {};
+      if (!this.data.agentPerformance) this.data.agentPerformance = [];
+      if (!this.data.calibrationProfiles) this.data.calibrationProfiles = [];
+      if (!this.data.aiDriftEvents) this.data.aiDriftEvents = [];
+      if (!this.data.adaptiveAuditLogs) this.data.adaptiveAuditLogs = [];
     } catch (e) {
       console.error('Failed to load database:', e);
       this.data = { 
@@ -94,12 +109,17 @@ export class LocalDatabase {
         userPreferences: {},
         historicalData: {},
         backtests: [],
-        backtestJobs: {}
+        backtestJobs: {},
+        adaptiveProfiles: {},
+        agentPerformance: [],
+        calibrationProfiles: [],
+        aiDriftEvents: [],
+        adaptiveAuditLogs: []
       };
     }
   }
 
-  private static save() {
+  public static save() {
     try {
       // Basic lock mechanism to prevent race conditions during write
       let retries = 0;

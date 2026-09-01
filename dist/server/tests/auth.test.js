@@ -24,7 +24,12 @@ describe('Auth & User Services', () => {
             userPreferences: {},
             historicalData: [],
             backtests: [],
-            backtestJobs: {}
+            backtestJobs: {},
+            adaptiveProfiles: {},
+            agentPerformance: [],
+            calibrationProfiles: [],
+            aiDriftEvents: [],
+            adaptiveAuditLogs: []
         };
     });
     it('should register a new user successfully', () => {

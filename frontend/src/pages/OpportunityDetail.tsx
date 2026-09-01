@@ -117,6 +117,31 @@ export default function OpportunityDetail() {
         </div>
       </div>
 
+      {opp.adaptiveIntelligence && opp.adaptiveIntelligence.adaptiveStatus !== 'NOT_APPLICABLE' && (
+        <div className="adaptive-banner mb-6 p-4 rounded-lg bg-[#151924] border border-[#2A2E39]">
+          <h3 className="text-blue-400 font-bold mb-2 flex items-center gap-2">
+            <GlossaryTooltip term="ADAPTIVE CONFIDENCE">Adaptive Intelligence</GlossaryTooltip> 
+            <span className={`px-2 py-0.5 text-xs rounded ${opp.adaptiveIntelligence.adaptiveStatus === 'COLD_START' ? 'bg-gray-700 text-gray-300' : 'bg-blue-900/50 text-blue-300'}`}>
+              {opp.adaptiveIntelligence.adaptiveStatus}
+            </span>
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
+            <div>
+              <div className="text-gray-400 text-xs">Quality Score</div>
+              <div className="font-bold text-lg">{opp.qualityScore} / 100</div>
+            </div>
+            <div>
+               <div className="text-gray-400 text-xs"><GlossaryTooltip term="SAMPLE SIZE">Sample Size</GlossaryTooltip></div>
+               <div className="font-bold text-lg">{opp.adaptiveIntelligence.sampleSize}</div>
+            </div>
+            <div className="col-span-2">
+               <div className="text-gray-400 text-xs">Historical Context</div>
+               <div className="text-sm text-gray-300 mt-1">{opp.adaptiveIntelligence.historicalContext}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid-layout main-grid">
         <div className="left-column">
           

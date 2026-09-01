@@ -27,7 +27,12 @@ class LocalDatabase {
         userPreferences: {},
         historicalData: {},
         backtests: [],
-        backtestJobs: {}
+        backtestJobs: {},
+        adaptiveProfiles: {},
+        agentPerformance: [],
+        calibrationProfiles: [],
+        aiDriftEvents: [],
+        adaptiveAuditLogs: []
     };
     static initialize() {
         const dir = path_1.default.dirname(this.filePath);
@@ -68,6 +73,16 @@ class LocalDatabase {
                 this.data.backtests = [];
             if (!this.data.backtestJobs)
                 this.data.backtestJobs = {};
+            if (!this.data.adaptiveProfiles)
+                this.data.adaptiveProfiles = {};
+            if (!this.data.agentPerformance)
+                this.data.agentPerformance = [];
+            if (!this.data.calibrationProfiles)
+                this.data.calibrationProfiles = [];
+            if (!this.data.aiDriftEvents)
+                this.data.aiDriftEvents = [];
+            if (!this.data.adaptiveAuditLogs)
+                this.data.adaptiveAuditLogs = [];
         }
         catch (e) {
             console.error('Failed to load database:', e);
@@ -89,7 +104,12 @@ class LocalDatabase {
                 userPreferences: {},
                 historicalData: {},
                 backtests: [],
-                backtestJobs: {}
+                backtestJobs: {},
+                adaptiveProfiles: {},
+                agentPerformance: [],
+                calibrationProfiles: [],
+                aiDriftEvents: [],
+                adaptiveAuditLogs: []
             };
         }
     }

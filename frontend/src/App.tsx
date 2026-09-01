@@ -13,6 +13,7 @@ import Watchlist from './pages/Watchlist';
 import Settings from './pages/Settings';
 import OpportunityDetail from './pages/OpportunityDetail';
 import { BacktestDashboard } from './pages/BacktestDashboard';
+import { AIIntelligenceDashboard } from './pages/AIIntelligenceDashboard';
 
 const App: React.FC = () => {
   return (
@@ -31,6 +32,7 @@ const App: React.FC = () => {
           <Route path="signals" element={<Signals />} />
           <Route path="watchlist" element={<Watchlist />} />
           <Route path="backtest" element={<BacktestDashboard />} />
+          <Route path="intelligence" element={<AIIntelligenceDashboard />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={
             <div style={{ padding: '40px', textAlign: 'center' }}>

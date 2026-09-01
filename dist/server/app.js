@@ -107,6 +107,7 @@ app.post('/api/ai/analyze/:symbol', async (req, res) => {
         res.json(analysis);
     }
     catch (error) {
+        console.error(`[API] AI Analysis for ${req.params.symbol} failed:`, error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -293,9 +294,11 @@ const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
 const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
 const authMiddleware_1 = require("./middleware/authMiddleware");
 const backtestRouter_1 = require("./routes/backtestRouter");
+const aiIntelligenceRoutes_1 = __importDefault(require("./routes/aiIntelligenceRoutes"));
 app.use('/api/auth', authRoutes_1.default);
 app.use('/api/user', userRoutes_1.default);
 app.use('/api/backtest', backtestRouter_1.backtestRouter);
+app.use('/api/ai', aiIntelligenceRoutes_1.default);
 app.get('/api/notifications', authMiddleware_1.requireAuth, (req, res) => {
     res.json(notificationOrchestrator_1.NotificationOrchestrator.getNotifications(req.user.id));
 });

@@ -23,7 +23,12 @@ describe('Notification Fan-Out', () => {
       userPreferences: {},
       historicalData: [],
       backtests: [],
-      backtestJobs: {}
+      backtestJobs: {},
+      adaptiveProfiles: {},
+      agentPerformance: [],
+      calibrationProfiles: [],
+      aiDriftEvents: [],
+      adaptiveAuditLogs: []
     };
   });
 

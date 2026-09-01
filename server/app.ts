@@ -327,10 +327,12 @@ import userRoutes from './routes/userRoutes';
 import { requireAuth } from './middleware/authMiddleware';
 
 import { backtestRouter } from './routes/backtestRouter';
+import aiIntelligenceRoutes from './routes/aiIntelligenceRoutes';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/backtest', backtestRouter);
+app.use('/api/ai', aiIntelligenceRoutes);
 
 app.get('/api/notifications', requireAuth, (req: any, res) => {
   res.json(NotificationOrchestrator.getNotifications(req.user.id));

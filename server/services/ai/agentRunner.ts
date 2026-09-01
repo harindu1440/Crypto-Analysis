@@ -5,6 +5,7 @@ import { MasterDecisionOutput, TradeSide } from './schemas/types';
 import { OpportunityService } from '../opportunities/opportunityService';
 import { TradeOpportunity } from '../opportunities/types';
 import { SignalQualityService } from './signalQualityService';
+import { AdaptiveIntelligenceService } from './adaptiveIntelligenceService';
 import crypto from 'crypto';
 
 const provider = new GeminiProvider();
@@ -131,10 +132,19 @@ export const AgentRunner = {
         }
       }
 
-      // Phase 12 & 15: Generate Global Trade Opportunity if valid & qualified
+      // Phase 19: Adaptive Intelligence Calibration
+      let adaptiveCalibration: any = null;
+      if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate && qualityEval.isQualified) {
+        adaptiveCalibration = AdaptiveIntelligenceService.calibrateSignal(finalResult, qualityEval, data);
+        
+        // Update the final result with calibrated confidence
+        finalResult.confidence = adaptiveCalibration.calibratedConfidence;
+      }
+
+      // Phase 12 & 15 & 19: Generate Global Trade Opportunity if valid & qualified
       if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate && qualityEval.isQualified) {
         const c = finalResult.tradeCandidate;
-        const opp: TradeOpportunity = {
+        const opp: TradeOpportunity & { adaptiveIntelligence?: any } = {
           id: crypto.randomUUID(),
           symbol,
           direction: c.side,
@@ -176,9 +186,10 @@ export const AgentRunner = {
             volatility: data.timeframes['1h']?.volatility.level || 'MEDIUM'
           },
 
-          qualityScore: qualityEval.score,
+          qualityScore: adaptiveCalibration ? adaptiveCalibration.calibratedQualityScore : qualityEval.score,
           qualityBreakdown: qualityEval.breakdown,
           rejectionReasons: qualityEval.rejectionReasons,
+          adaptiveIntelligence: adaptiveCalibration,
           fingerprint: `${symbol}-${c.side}-${c.timeframe}-${qualityEval.marketRegime}`,
           version: 1,
           updatedAt: Date.now(),
