@@ -11,6 +11,9 @@ export default function OpportunityDetail() {
   const navigate = useNavigate();
   const [opp, setOpp] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [liveData, setLiveData] = useState<any>(null);
+  const [timeline, setTimeline] = useState<any[]>([]);
+  
   
   // Execution state
   const [account, setAccount] = useState<any>(null);
@@ -43,15 +46,52 @@ export default function OpportunityDetail() {
       }
     };
 
+    const fetchTimeline = async () => {
+      try {
+        const res = await fetch(`/api/opportunities/${id}/timeline`);
+        if (res.ok) setTimeline(await res.json());
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
     fetchOpp();
     fetchAccount();
+    fetchTimeline();
+
+    // SSE Connection for Live Updates
+    const evtSource = new EventSource('/api/events');
+    evtSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.eventType === 'MARKET_UPDATE' && data.symbol === opp?.symbol) {
+          setLiveData(data.payload);
+        } else if (
+          (data.eventType === 'OPPORTUNITY_UPDATED' || 
+           data.eventType === 'OPPORTUNITY_APPROACHING' || 
+           data.eventType === 'ENTRY_TRIGGERED' || 
+           data.eventType === 'OPPORTUNITY_INVALIDATED') && 
+          data.payload.opportunityId === id
+        ) {
+          fetchOpp();
+          fetchTimeline();
+        }
+      } catch (e) {
+        console.error('Error parsing SSE event:', e);
+      }
+    };
 
     const int = setInterval(() => {
       fetchOpp();
+      fetchTimeline();
       setCurrentTime(Date.now());
-    }, 2000);
-    return () => clearInterval(int);
-  }, [id]);
+    }, 5000); // reduced polling frequency since we have SSE
+    
+    return () => {
+      clearInterval(int);
+      evtSource.close();
+    };
+  }, [id, opp?.symbol]);
 
   if (loading) return <div>Loading Opportunity...</div>;
   if (!opp) return <div className="not-found">Opportunity not found or expired.</div>;
@@ -103,7 +143,14 @@ export default function OpportunityDetail() {
       {/* 2. TOP LEVEL DECISION */}
       <div className={`decision-banner ${opp.direction.toLowerCase()}`}>
         <div className="decision-header">
-          <h1>{opp.symbol}</h1>
+          <div className="flex flex-col gap-1">
+            <h1>{opp.symbol}</h1>
+            {liveData && (
+              <span className="text-xl text-gray-300 font-mono">
+                Live Price: ${liveData.price.toFixed(4)}
+              </span>
+            )}
+          </div>
           <div className="decision-badge">
             {opp.direction === 'LONG' ? '🟢 LONG' : opp.direction === 'SHORT' ? '🔴 SHORT' : '⚪ NO TRADE'}
           </div>
@@ -138,6 +185,29 @@ export default function OpportunityDetail() {
                <div className="text-gray-400 text-xs">Historical Context</div>
                <div className="text-sm text-gray-300 mt-1">{opp.adaptiveIntelligence.historicalContext}</div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TIMELINE SECTION */}
+      {timeline.length > 0 && (
+        <div className="mb-6 p-5 rounded-xl bg-[#11141D] border border-[#2A2E39]">
+          <h3 className="text-gray-300 font-bold mb-4">Signal Lifecycle</h3>
+          <div className="flex gap-4 items-center overflow-x-auto pb-2">
+            {timeline.map((step, idx) => (
+              <div key={idx} className="flex items-center">
+                <div className="flex flex-col items-center min-w-[120px]">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-[#1A1F2C] border-2 border-blue-500 text-blue-400 z-10">
+                    {idx + 1}
+                  </div>
+                  <span className="text-xs text-gray-400 mt-2 text-center break-words">{step.status}</span>
+                  <span className="text-[10px] text-gray-500 text-center">{new Date(step.timestamp).toLocaleTimeString()}</span>
+                </div>
+                {idx < timeline.length - 1 && (
+                  <div className="w-12 h-[2px] bg-blue-900/50 -ml-2 -mr-2 mt-[-24px]"></div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -182,6 +252,18 @@ export default function OpportunityDetail() {
                 </div>
               </div>
             </Card>
+          </div>
+          
+          <div className="mt-6 mb-6 p-5 rounded-xl bg-[#0f1219] border border-blue-900/30">
+            <h3 className="text-blue-300 font-bold mb-2">What Happens Next?</h3>
+            <p className="text-gray-300 text-sm mb-2">
+              The AI has detected this setup, but it is currently <strong className="text-white">{opp.status}</strong>.
+            </p>
+            <ul className="list-disc list-inside text-sm text-gray-400 space-y-1 ml-2">
+              <li>If the Live Price drops below the Stop Loss before reaching the Entry Zone, this setup will be INVALIDATED.</li>
+              <li>When the Live Price enters the Entry Zone, the system will mark this as ENTRY_TRIGGERED.</li>
+              <li>You can optionally schedule an automated execution below, which will wait until the entry is triggered.</li>
+            </ul>
           </div>
 
           {/* 11 & 12. AI CONSENSUS & MULTI-TIMEFRAME */}

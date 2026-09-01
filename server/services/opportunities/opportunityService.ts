@@ -60,6 +60,15 @@ export const OpportunityService = {
     
     return opportunity;
   },
+  
+  updateOpportunity(opportunity: TradeOpportunity) {
+    const opps = this.getOpportunities();
+    const index = opps.findIndex(o => o.id === opportunity.id);
+    if (index !== -1) {
+      opps[index] = opportunity;
+      LocalDatabase.set('opportunities', opps);
+    }
+  },
 
   updateStatus(id: string, status: TradeOpportunity['status'], reason?: string) {
     const opps = this.getOpportunities();

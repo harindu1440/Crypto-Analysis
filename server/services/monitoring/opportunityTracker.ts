@@ -1,94 +1,40 @@
 import { OpportunityService } from '../opportunities/opportunityService';
-import { BinanceMarketService } from '../binance/binanceMarketService';
-import { NotificationOrchestrator } from '../notifications/notificationOrchestrator';
+import { EventBus } from '../system/eventBus';
+import { LifecycleService } from '../opportunities/lifecycleService';
 
 export const OpportunityTracker = {
-  timer: null as NodeJS.Timeout | null,
+  unsubscribeMarketUpdate: null as (() => void) | null,
   
   start() {
-    if (this.timer) return;
-    console.log('[OpportunityTracker] Started background lifecycle tracker');
-    // Run every 10 seconds
-    this.timer = setInterval(() => this.tick(), 10000);
+    if (this.unsubscribeMarketUpdate) return;
+    console.log('[OpportunityTracker] Started event-driven lifecycle tracker');
+    
+    // Listen to market updates and revalidate active opportunities
+    this.unsubscribeMarketUpdate = EventBus.subscribe('MARKET_UPDATE', (event) => {
+      this.revalidateSymbol(event.symbol!);
+    });
+    
+    // Also revalidate on candle close
+    EventBus.subscribe('CANDLE_CLOSE', (event) => {
+      this.revalidateSymbol(event.symbol!);
+    });
   },
 
   stop() {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-      console.log('[OpportunityTracker] Stopped background lifecycle tracker');
+    if (this.unsubscribeMarketUpdate) {
+      this.unsubscribeMarketUpdate();
+      this.unsubscribeMarketUpdate = null;
+      console.log('[OpportunityTracker] Stopped event-driven lifecycle tracker');
     }
   },
 
-  async tick() {
-    const activeOpps = OpportunityService.getActiveOpportunities();
+  revalidateSymbol(symbol: string) {
+    const activeOpps = OpportunityService.getActiveOpportunities().filter(o => o.symbol === symbol);
     if (activeOpps.length === 0) return;
 
     for (const opp of activeOpps) {
       try {
-        const ticker = await BinanceMarketService.getTicker(opp.symbol);
-        const currentPrice = Number(ticker.lastPrice);
-
-        // 1. Check Expiration
-        if (Date.now() > opp.expiresAt) {
-          OpportunityService.updateStatus(opp.id, 'EXPIRED', 'Opportunity time expired.');
-          NotificationOrchestrator.dispatch(
-            'EXPIRED', 'LOW', 
-            `Opportunity Expired: ${opp.symbol}`, 
-            `The opportunity has exceeded its timeframe.`, 
-            opp
-          );
-          continue;
-        }
-
-        // 2. Check Invalidation (Stop Loss hit before Entry)
-        if (opp.direction === 'LONG' && currentPrice <= opp.stopLoss) {
-          OpportunityService.updateStatus(opp.id, 'INVALIDATED', 'Price dropped below Stop Loss before entry.');
-          NotificationOrchestrator.dispatch(
-            'INVALIDATED', 'MEDIUM', 
-            `Opportunity Invalidated: ${opp.symbol}`, 
-            `Price broke the stop loss level before hitting the entry zone.`, 
-            opp
-          );
-          continue;
-        }
-        if (opp.direction === 'SHORT' && currentPrice >= opp.stopLoss) {
-          OpportunityService.updateStatus(opp.id, 'INVALIDATED', 'Price rose above Stop Loss before entry.');
-          NotificationOrchestrator.dispatch(
-            'INVALIDATED', 'MEDIUM', 
-            `Opportunity Invalidated: ${opp.symbol}`, 
-            `Price broke the stop loss level before hitting the entry zone.`, 
-            opp
-          );
-          continue;
-        }
-
-        // 3. Check Approaching Entry
-        // For LONG, if price is dropping towards entryZone max
-        const thresholdPercent = 0.005; // 0.5% away
-        let isApproaching = false;
-        
-        if (opp.direction === 'LONG' && currentPrice > opp.entryZone.max) {
-           const distance = (currentPrice - opp.entryZone.max) / opp.entryZone.max;
-           if (distance <= thresholdPercent) isApproaching = true;
-        } else if (opp.direction === 'SHORT' && currentPrice < opp.entryZone.min) {
-           const distance = (opp.entryZone.min - currentPrice) / opp.entryZone.min;
-           if (distance <= thresholdPercent) isApproaching = true;
-        }
-
-        if (isApproaching && opp.status !== 'APPROACHING_ENTRY') {
-           OpportunityService.updateStatus(opp.id, 'APPROACHING_ENTRY');
-           NotificationOrchestrator.dispatch(
-             'APPROACHING_ENTRY', 'HIGH',
-             `Entry Approaching: ${opp.symbol}`,
-             `Price is very close to the entry zone. Get ready.`,
-             opp
-           );
-        } else if (!isApproaching && opp.status === 'APPROACHING_ENTRY') {
-           // Move back to QUALIFIED/ACTIVE if it moves away
-           OpportunityService.updateStatus(opp.id, 'QUALIFIED');
-        }
-
+        LifecycleService.revalidate(opp);
       } catch (err: any) {
         console.error(`[OpportunityTracker] Error tracking ${opp.symbol}:`, err.message);
       }

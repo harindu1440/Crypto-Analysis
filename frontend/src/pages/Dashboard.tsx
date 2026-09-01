@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MarketSummaryCard } from '../components/market/MarketSummaryCard';
 import { MarketTable } from '../components/market/MarketTable';
-import { mockMarketSummary } from '../data/mockMarketData';
 import { Card } from '../components/common/Card';
 import { SystemStatusPanel } from '../components/system/SystemStatusPanel';
 import { AnalyticsPanel } from '../components/analytics/AnalyticsPanel';
@@ -81,7 +79,6 @@ const Dashboard: React.FC = () => {
         </p>
       </header>
 
-      <MarketSummaryCard summary={mockMarketSummary} />
 
       <div style={{ marginTop: '16px' }}>
         <OpportunityFeed />

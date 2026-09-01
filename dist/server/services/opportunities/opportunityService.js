@@ -36,6 +36,14 @@ exports.OpportunityService = {
         require('../notifications/notificationOrchestrator').NotificationOrchestrator.dispatch('NEW_OPPORTUNITY', 'HIGH', `New Opportunity: ${opportunity.symbol} ${opportunity.direction}`, `A new high-quality setup was detected. Score: ${opportunity.qualityScore}`, opportunity);
         return opportunity;
     },
+    updateOpportunity(opportunity) {
+        const opps = this.getOpportunities();
+        const index = opps.findIndex(o => o.id === opportunity.id);
+        if (index !== -1) {
+            opps[index] = opportunity;
+            database_1.LocalDatabase.set('opportunities', opps);
+        }
+    },
     updateStatus(id, status, reason) {
         const opps = this.getOpportunities();
         const opp = opps.find(o => o.id === id);

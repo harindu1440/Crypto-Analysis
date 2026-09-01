@@ -50,6 +50,41 @@ app.get('/api/analytics/equity-curve', (req, res) => {
 });
 // Binance Market Routes
 const binanceMarketService_1 = require("./services/binance/binanceMarketService");
+const marketStateService_1 = require("./services/market/marketStateService");
+const eventBus_1 = require("./services/system/eventBus");
+// Phase 20: Server-Sent Events (SSE) for Real-time Frontend Updates
+app.get('/api/events', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders(); // flush the headers to establish SSE
+    const sendEvent = (event) => {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+    const unsubscribeMarketUpdate = eventBus_1.EventBus.subscribe('MARKET_UPDATE', sendEvent);
+    const unsubscribeOpportunityUpdated = eventBus_1.EventBus.subscribe('OPPORTUNITY_UPDATED', sendEvent);
+    const unsubscribeOpportunityApproaching = eventBus_1.EventBus.subscribe('OPPORTUNITY_APPROACHING', sendEvent);
+    const unsubscribeEntryTriggered = eventBus_1.EventBus.subscribe('ENTRY_TRIGGERED', sendEvent);
+    const unsubscribeOpportunityInvalidated = eventBus_1.EventBus.subscribe('OPPORTUNITY_INVALIDATED', sendEvent);
+    const unsubscribeSystemAlert = eventBus_1.EventBus.subscribe('SYSTEM_ALERT', sendEvent);
+    req.on('close', () => {
+        unsubscribeMarketUpdate();
+        unsubscribeOpportunityUpdated();
+        unsubscribeOpportunityApproaching();
+        unsubscribeEntryTriggered();
+        unsubscribeOpportunityInvalidated();
+        unsubscribeSystemAlert();
+    });
+});
+app.get('/api/markets/live', (req, res) => {
+    res.json(marketStateService_1.MarketStateService.getAllSnapshots());
+});
+app.get('/api/markets/live/:symbol', (req, res) => {
+    const snapshot = marketStateService_1.MarketStateService.getSnapshot(req.params.symbol);
+    if (!snapshot)
+        return res.status(404).json({ error: 'Market snapshot not found' });
+    res.json(snapshot);
+});
 app.get('/api/markets/symbols', async (req, res) => {
     try {
         const symbols = await binanceMarketService_1.BinanceMarketService.getSymbols();
@@ -212,6 +247,28 @@ app.get('/api/opportunities/:id/status', (req, res) => {
     if (!opp)
         return res.status(404).json({ error: 'Opportunity not found' });
     res.json({ status: opp.status, reason: opp.reason });
+});
+// Phase 20: Timeline Event Mocking (since we don't store historical timeline yet, we just generate based on current status)
+app.get('/api/opportunities/:id/timeline', (req, res) => {
+    const opps = opportunityService_1.OpportunityService.getOpportunities();
+    const opp = opps.find(o => o.id === req.params.id);
+    if (!opp)
+        return res.status(404).json({ error: 'Opportunity not found' });
+    // Basic timeline generation for Phase 20 visualization
+    const timeline = [
+        { status: 'DETECTED', timestamp: opp.createdAt, note: 'AI Analysis Initiated' },
+        { status: 'QUALIFIED', timestamp: opp.createdAt + 10000, note: 'Opportunity Qualified by Risk Engine' }
+    ];
+    if (['APPROACHING_ENTRY', 'ENTRY_TRIGGERED', 'EXECUTION_READY', 'POSITION_OPEN', 'INVALIDATED', 'EXPIRED'].includes(opp.status)) {
+        timeline.push({ status: 'APPROACHING_ENTRY', timestamp: opp.updatedAt - 20000, note: 'Price approached entry zone' });
+    }
+    if (['ENTRY_TRIGGERED', 'EXECUTION_READY', 'POSITION_OPEN'].includes(opp.status)) {
+        timeline.push({ status: 'ENTRY_TRIGGERED', timestamp: opp.updatedAt - 10000, note: 'Price triggered entry' });
+    }
+    if (['INVALIDATED', 'EXPIRED'].includes(opp.status)) {
+        timeline.push({ status: opp.status, timestamp: opp.updatedAt, note: opp.reason || 'Opportunity closed' });
+    }
+    res.json(timeline);
 });
 // Phase 10: Position & Lifecycle Endpoints
 const positionManager_1 = require("./services/execution/positionManager");

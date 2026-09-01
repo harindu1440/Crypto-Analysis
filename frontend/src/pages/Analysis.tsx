@@ -54,7 +54,14 @@ const Analysis: React.FC = () => {
         ]);
         setUpcomingExecutions(executions);
         setMonitorStatus(mStatus);
-        setMonitorEvents(mEvents);
+        
+        // We will merge polled events with SSE, but polling is safe fallback
+        setMonitorEvents(prev => {
+          const combined = [...prev, ...mEvents];
+          // Deduplicate by id if possible, simple approach: just use new for now
+          return mEvents.length > 0 ? mEvents : prev;
+        });
+
         setAccountStatus(aStatus);
         setAccountBalances(aBals);
         setAccountOrders(aOrds);
@@ -64,8 +71,37 @@ const Analysis: React.FC = () => {
     };
     
     pollSystem();
-    const interval = setInterval(pollSystem, 2000);
-    return () => clearInterval(interval);
+    const interval = setInterval(pollSystem, 5000); // reduced frequency
+    
+    // SSE for real-time alerts
+    const evtSource = new EventSource('/api/events');
+    evtSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.eventType === 'SYSTEM_ALERT') {
+          setMonitorEvents(prev => [{
+            id: Date.now().toString(),
+            timestamp: Date.now(),
+            type: 'WARNING',
+            symbol: 'SYSTEM',
+            message: data.payload.message
+          }, ...prev].slice(0, 50));
+        } else if (data.eventType === 'OPPORTUNITY_CREATED' || data.eventType === 'OPPORTUNITY_UPDATED') {
+          setMonitorEvents(prev => [{
+            id: Date.now().toString(),
+            timestamp: Date.now(),
+            type: 'INFO',
+            symbol: data.symbol,
+            message: `Opportunity ${data.payload?.to || 'Updated'}`
+          }, ...prev].slice(0, 50));
+        }
+      } catch (e) {}
+    };
+
+    return () => {
+      clearInterval(interval);
+      evtSource.close();
+    };
   }, []);
 
   // Update clock every second for countdowns
@@ -405,7 +441,7 @@ const Analysis: React.FC = () => {
 
       {/* RISK CONFIGURATION PANEL */}
       {showRiskConfig && riskConfig && (
-        <Card title="Risk Configuration (Demo Account)">
+        <Card title="Risk Configuration (Paper Trading)">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
             <div><label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Account Equity (USDT)</label><input type="number" value={riskConfig.accountEquity} onChange={(e) => handleConfigChange('accountEquity', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)' }} /></div>
             <div><label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Risk per Trade (%)</label><input type="number" step="0.1" value={riskConfig.riskPerTradePercent} onChange={(e) => handleConfigChange('riskPerTradePercent', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)' }} /></div>

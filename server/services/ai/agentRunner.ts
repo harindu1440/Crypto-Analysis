@@ -6,10 +6,14 @@ import { OpportunityService } from '../opportunities/opportunityService';
 import { TradeOpportunity } from '../opportunities/types';
 import { SignalQualityService } from './signalQualityService';
 import { AdaptiveIntelligenceService } from './adaptiveIntelligenceService';
+import { EventBus } from '../system/eventBus';
 import crypto from 'crypto';
 
 const provider = new GeminiProvider();
 const agent = new AIAgent(provider);
+
+let aiSystemPaused = false;
+let aiSystemPauseTimer: NodeJS.Timeout | null = null;
 
 // In-memory lock to prevent duplicate concurrent analysis
 const activeAnalysisLocks = new Set<string>();
@@ -19,7 +23,12 @@ const latestAnalysisResults = new Map<string, MasterDecisionOutput>();
 
 export const AgentRunner = {
   
-  async runAnalysis(symbol: string): Promise<MasterDecisionOutput> {
+  async runAnalysis(symbol: string, triggerPayload?: any): Promise<MasterDecisionOutput> {
+    if (aiSystemPaused) {
+      console.warn(`[AgentRunner] AI System is currently paused due to rate limits or failures. Skipping analysis for ${symbol}.`);
+      throw new Error('AI System Paused');
+    }
+
     const lockKey = `${symbol}-analysis`;
     
     if (activeAnalysisLocks.has(lockKey)) {
@@ -89,8 +98,19 @@ export const AgentRunner = {
 
       console.log(`[AgentRunner] Completed AI analysis for ${symbol}. Decision: ${finalResult.decision}`);
       
-      // Save to memory
+      // Store in memory cache
       latestAnalysisResults.set(symbol, finalResult);
+
+      EventBus.publish({
+        eventType: 'AI_ANALYSIS_COMPLETED',
+        source: 'AgentRunner',
+        symbol,
+        payload: {
+          decision: finalResult.decision,
+          confidence: finalResult.confidence,
+          triggerPayload
+        }
+      });
 
       // Deterministic Validation & R:R recalculation
       if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate) {
@@ -202,6 +222,30 @@ export const AgentRunner = {
       }
 
       return finalResult;
+    } catch (e: any) {
+      console.error(`[AgentRunner] Analysis failed for ${symbol}:`, e.message);
+      
+      // If we hit rate limits or Gemini is down, pause new requests for 60 seconds
+      if (e.message?.includes('429') || e.message?.includes('500') || e.message?.includes('RESOURCE_EXHAUSTED')) {
+        if (!aiSystemPaused) {
+          console.warn('[AgentRunner] ⚠️ Gemini failure detected. Pausing new AI requests for 60 seconds.');
+          aiSystemPaused = true;
+          
+          EventBus.publish({
+            eventType: 'SYSTEM_ALERT',
+            source: 'AgentRunner',
+            payload: { message: 'AI System Degraded: Rate limit or upstream error. Market monitoring continues.' }
+          });
+
+          if (aiSystemPauseTimer) clearTimeout(aiSystemPauseTimer);
+          aiSystemPauseTimer = setTimeout(() => {
+            console.log('[AgentRunner] 🟢 Resuming AI requests.');
+            aiSystemPaused = false;
+          }, 60000);
+        }
+      }
+      
+      throw e;
     } finally {
       activeAnalysisLocks.delete(lockKey);
     }

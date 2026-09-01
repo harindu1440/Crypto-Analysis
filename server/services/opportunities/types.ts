@@ -5,15 +5,17 @@ export type OpportunityStatus =
   | 'ANALYZING'
   | 'VALIDATING'
   | 'QUALIFIED'
-  | 'ACTIVE'
   | 'APPROACHING_ENTRY'
-  | 'TRIGGERED'
-  | 'EXECUTED'
+  | 'ENTRY_TRIGGERED'
+  | 'EXECUTION_READY'
+  | 'POSITION_OPEN'
+  | 'POSITION_CLOSING'
+  | 'CLOSED'
   | 'REJECTED'
   | 'EXPIRED'
   | 'INVALIDATED'
   | 'CANCELLED'
-  | 'COMPLETED';
+  | 'NO_TRADE';
 
 export interface TradeOpportunity {
   id: string;

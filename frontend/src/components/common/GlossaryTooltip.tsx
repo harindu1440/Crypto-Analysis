@@ -26,6 +26,18 @@ const GLOSSARY = {
     beginner: "Fair Value Gap - A sudden, fast price movement that left a gap on the chart. Price often returns to fill it.",
     advanced: "Fair Value Gap - An imbalance in price action leaving unmitigated price levels."
   },
+  'LIQUIDITY SWEEP': {
+    beginner: "When the price briefly drops past a major low (or rises past a high) just to trigger stop losses before reversing.",
+    advanced: "A rapid price movement designed to trigger resting stop orders in high-liquidity zones before a structural reversal."
+  },
+  'ORDER BLOCK': {
+    beginner: "The last candlestick before a strong price move. Big institutions often return to this area to buy/sell more.",
+    advanced: "The last bearish/bullish candle prior to a strong impulsive move that breaks market structure, representing institutional order accumulation."
+  },
+  'ENTRY ZONE': {
+    beginner: "The specific price area where the AI recommends opening your trade.",
+    advanced: "The calculated price range for optimal execution, usually encompassing order blocks or FVGs."
+  },
   ENTRY: {
     beginner: "The exact price where you should start the trade.",
     advanced: "The calculated price level for optimal execution based on structure and risk."

@@ -130,7 +130,7 @@ class GlobalMonitoringOrchestrator {
                     requiredCooldown = this.APPROACHING_COOLDOWN_MS;
                     priorityScore = 100;
                 }
-                else if (opp.status === 'QUALIFIED' || opp.status === 'ACTIVE') {
+                else if (opp.status === 'QUALIFIED') {
                     requiredCooldown = this.QUALIFIED_COOLDOWN_MS;
                     priorityScore = 50;
                 }

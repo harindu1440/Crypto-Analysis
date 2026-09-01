@@ -14,9 +14,3 @@ export interface MarketSummary {
   marketSentiment: 'Bullish' | 'Bearish' | 'Neutral';
 }
 
-export interface Signal {
-  symbol: string;
-  action: 'BUY' | 'SELL' | 'NEUTRAL';
-  confidence: number;
-  timeframe: string;
-}

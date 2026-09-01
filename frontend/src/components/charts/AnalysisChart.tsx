@@ -134,8 +134,31 @@ export const AnalysisChart: React.FC<Props> = ({ symbol }) => {
 
     window.addEventListener('resize', handleResize);
 
+    // Setup real-time updates via SSE
+    const evtSource = new EventSource('/api/events');
+    evtSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.eventType === 'CANDLE_CLOSE' && data.symbol === symbol && data.payload.interval === timeframe) {
+           const kline = data.payload;
+           if (seriesRef.current) {
+             seriesRef.current.update({
+               time: Math.floor(kline.startTime / 1000) as any,
+               open: kline.open,
+               high: kline.high,
+               low: kline.low,
+               close: kline.close
+             });
+           }
+        }
+      } catch (e) {
+        console.error('SSE error in chart:', e);
+      }
+    };
+
     return () => {
       window.removeEventListener('resize', handleResize);
+      evtSource.close();
       chart.remove();
     };
   }, [symbol, timeframe]);
