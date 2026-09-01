@@ -10,11 +10,13 @@ import { AIRole } from './providers/providerRegistry';
 
 // ─── Model Status ─────────────────────────────────────────────────────────────
 export type ModelStatus =
+  | 'CONFIGURED'
   | 'AVAILABLE'
   | 'ACTIVE'
   | 'RATE_LIMITED'
   | 'QUOTA_EXHAUSTED'
   | 'COOLDOWN'
+  | 'SLOW'
   | 'FAILED'
   | 'DISABLED'
   | 'OFFLINE'
@@ -25,6 +27,8 @@ export type ErrorClass =
   | 'QUOTA_EXHAUSTED'
   | 'RATE_LIMITED'
   | 'TRANSIENT'
+  | 'TIMEOUT'
+  | 'NETWORK_ERROR'
   | 'OFFLINE'
   | 'INVALID_REQUEST'
   | 'AUTHENTICATION_ERROR'
@@ -58,10 +62,12 @@ export interface ModelRegistryEntry {
   cooldownUntil: number | null;
   quotaResetAt: number | null;
   consecutiveFailures: number;
+  timeoutCount: number;
   totalRequests: number;
   successfulRequests: number;
   failedRequests: number;
   totalLatencyMs: number;
+  averageLatencyMs: number;
   lastUsedAt: number | null;
   lastFailureAt: number | null;
   lastSuccessAt: number | null;
@@ -133,7 +139,7 @@ class ModelRegistryImpl {
         }
       }
 
-      if (model.status === 'AVAILABLE' || model.status === 'ACTIVE') {
+      if (model.status === 'AVAILABLE' || model.status === 'ACTIVE' || model.status === 'SLOW' || model.status === 'CONFIGURED') {
         eligible.push(model);
       }
     }
@@ -152,6 +158,12 @@ class ModelRegistryImpl {
     model.totalRequests++;
     model.successfulRequests++;
     model.totalLatencyMs += latencyMs;
+    // Rolling average: 80% history, 20% new
+    model.averageLatencyMs = model.averageLatencyMs === 0 ? latencyMs : (model.averageLatencyMs * 0.8) + (latencyMs * 0.2);
+    
+    // Gradual timeout recovery
+    if (model.timeoutCount > 0) model.timeoutCount = Math.max(0, model.timeoutCount - 1);
+    
     model.lastSuccessAt = Date.now();
     model.lastUsedAt = Date.now();
     model.consecutiveFailures = 0;
@@ -212,6 +224,28 @@ class ModelRegistryImpl {
         break;
       }
 
+      case 'NETWORK_ERROR': {
+        model.status = 'COOLDOWN';
+        model.cooldownUntil = now + (HEALTH_RECHECK_MS / 2); // Shorter cooldown for network
+        console.warn(`[ModelRegistry] ${model.id} → NETWORK_ERROR. Cooldown until ${new Date(model.cooldownUntil).toISOString()}`);
+        break;
+      }
+
+      case 'TIMEOUT': {
+        model.timeoutCount++;
+        // Apply rolling penalty to latency explicitly just in case
+        model.averageLatencyMs = (model.averageLatencyMs * 0.5) + (15000 * 0.5); 
+        
+        if (model.timeoutCount > 2) {
+           model.status = 'SLOW';
+        } else if (model.timeoutCount > 5) {
+           model.status = 'COOLDOWN';
+           model.cooldownUntil = now + (HEALTH_RECHECK_MS);
+        }
+        console.warn(`[ModelRegistry] ${model.id} → TIMEOUT (${model.timeoutCount} times). Status: ${model.status}`);
+        break;
+      }
+
       case 'PROVIDER_ERROR':
       case 'UNKNOWN':
       case 'TRANSIENT':
@@ -220,7 +254,7 @@ class ModelRegistryImpl {
           model.status = 'COOLDOWN';
           model.cooldownUntil = now + HEALTH_RECHECK_MS;
           console.warn(`[ModelRegistry] ${model.id} → COOLDOWN after ${model.consecutiveFailures} failures`);
-        } else {
+        } else if (model.status !== 'SLOW' && model.status !== 'CONFIGURED') {
           model.status = 'AVAILABLE'; // still eligible, just degraded
         }
         break;
@@ -239,14 +273,13 @@ class ModelRegistryImpl {
       ? model.successfulRequests / model.totalRequests
       : 1.0; // no history = optimistic
 
-    const avgLatency = model.totalRequests > 0
-      ? model.totalLatencyMs / model.successfulRequests || 5000
-      : 3000; // assume 3s for new models
+    const avgLatency = model.averageLatencyMs > 0 ? model.averageLatencyMs : 3000;
 
     const latencyScore = Math.max(0, 1 - (avgLatency / 30000)); // normalize against 30s max
     const reliabilityScore = successRate;
     const priorityScore = 1 - (model.priority - 1) * 0.1; // priority 1 = 1.0, priority 5 = 0.6
     const failurePenalty = Math.max(0, 1 - model.consecutiveFailures * 0.2);
+    const timeoutPenalty = Math.max(0, 1 - model.timeoutCount * 0.15);
     
     // Penalize models that are currently handling their max concurrency
     // This pushes the router to distribute requests to other capable models first.
@@ -260,11 +293,12 @@ class ModelRegistryImpl {
     }
 
     return (
-      reliabilityScore * 0.30 +
+      reliabilityScore * 0.25 +
       latencyScore * 0.20 +
       priorityScore * 0.20 +
-      loadScore * 0.20 +
-      failurePenalty * 0.10
+      loadScore * 0.15 +
+      failurePenalty * 0.10 +
+      timeoutPenalty * 0.10
     );
   }
 
@@ -344,7 +378,8 @@ class ModelRegistryImpl {
       msg.includes('model not found') ||
       msg.includes('does not exist') ||
       msg.includes('invalid model') ||
-      msg.includes('unsupported model')
+      msg.includes('unsupported model') ||
+      msg.includes('decommissioned')
     ) {
       return 'MODEL_NOT_FOUND';
     }
@@ -359,7 +394,15 @@ class ModelRegistryImpl {
       return 'INVALID_REQUEST';
     }
     
-    if (msg.includes('50') || msg.includes('timeout')) {
+    if (msg.includes('fetch failed') || msg.includes('network error') || msg.includes('econnrefused')) {
+      return 'NETWORK_ERROR';
+    }
+    
+    if (msg.includes('timeout') || msg.includes('abort')) {
+       return 'TIMEOUT';
+    }
+    
+    if (msg.includes('50') || msg.includes('service unavailable')) {
       return 'PROVIDER_ERROR';
     }
 

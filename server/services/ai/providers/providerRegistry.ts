@@ -58,13 +58,13 @@ export class ProviderRegistry {
         providerInstance: gemini,
         role: 'INDEPENDENT MARKET ANALYST',
         priority: geminiPriority,
-        status: 'AVAILABLE',
+        status: 'CONFIGURED',
         capabilities: { ...defaultCapabilities },
         activeRequests: 0,
         maxConcurrentRequests: geminiMaxConcurrent,
         cooldownUntil: null, quotaResetAt: null,
-        consecutiveFailures: 0, totalRequests: 0, successfulRequests: 0,
-        failedRequests: 0, totalLatencyMs: 0,
+        consecutiveFailures: 0, timeoutCount: 0, totalRequests: 0, successfulRequests: 0,
+        failedRequests: 0, totalLatencyMs: 0, averageLatencyMs: 0,
         lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null,
       });
     }
@@ -73,21 +73,28 @@ export class ProviderRegistry {
     const groq = new GroqProvider();
     const groqPriority = parseInt(process.env.GROQ_PRIORITY || '2');
     if (groq.isConfigured()) {
+      let groqStatus: ModelStatus = 'CONFIGURED';
+      const groqModel = process.env.GROQ_MODEL || 'llama3-70b-8192';
+      if (groqModel === 'llama3-70b-8192') {
+         console.warn(`[ProviderRegistry] WARNING: Groq model ${groqModel} is invalid/decommissioned.`);
+         groqStatus = 'DISABLED';
+      }
+
       this.providers.push({ provider: groq, role: 'TECHNICAL ANALYST', priority: groqPriority });
       this.registerModel({
-        id: `groq:${process.env.GROQ_MODEL || 'llama3-70b-8192'}`,
+        id: `groq:${groqModel}`,
         provider: 'groq',
-        modelName: process.env.GROQ_MODEL || 'llama3-70b-8192',
+        modelName: groqModel,
         providerInstance: groq,
         role: 'TECHNICAL ANALYST',
         priority: groqPriority,
-        status: 'AVAILABLE',
+        status: groqStatus,
         capabilities: { ...defaultCapabilities },
         activeRequests: 0,
         maxConcurrentRequests: maxParallelPerModel,
         cooldownUntil: null, quotaResetAt: null,
-        consecutiveFailures: 0, totalRequests: 0, successfulRequests: 0,
-        failedRequests: 0, totalLatencyMs: 0,
+        consecutiveFailures: 0, timeoutCount: 0, totalRequests: 0, successfulRequests: 0,
+        failedRequests: 0, totalLatencyMs: 0, averageLatencyMs: 0,
         lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null,
       });
     }
@@ -104,13 +111,13 @@ export class ProviderRegistry {
         providerInstance: hf,
         role: 'MOMENTUM ANALYST',
         priority: hfPriority,
-        status: 'AVAILABLE',
+        status: 'CONFIGURED',
         capabilities: { ...defaultCapabilities },
         activeRequests: 0,
         maxConcurrentRequests: maxParallelPerModel,
         cooldownUntil: null, quotaResetAt: null,
-        consecutiveFailures: 0, totalRequests: 0, successfulRequests: 0,
-        failedRequests: 0, totalLatencyMs: 0,
+        consecutiveFailures: 0, timeoutCount: 0, totalRequests: 0, successfulRequests: 0,
+        failedRequests: 0, totalLatencyMs: 0, averageLatencyMs: 0,
         lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null,
       });
     }
@@ -133,13 +140,13 @@ export class ProviderRegistry {
           providerInstance: provider,
           role,
           priority,
-          status: 'AVAILABLE',
+          status: 'CONFIGURED',
           capabilities: { ...defaultCapabilities },
           activeRequests: 0,
           maxConcurrentRequests: maxParallelPerModel,
           cooldownUntil: null, quotaResetAt: null,
-          consecutiveFailures: 0, totalRequests: 0, successfulRequests: 0,
-          failedRequests: 0, totalLatencyMs: 0,
+          consecutiveFailures: 0, timeoutCount: 0, totalRequests: 0, successfulRequests: 0,
+          failedRequests: 0, totalLatencyMs: 0, averageLatencyMs: 0,
           lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null,
         });
       }

@@ -7,17 +7,18 @@ export class ConsensusEngine {
     symbol: string,
     decisions: MasterDecisionOutput[],
     minModels: number,
-    minConsensusPercent: number
+    minConsensusPercent: number,
+    expectedTotalRoles: number = 1
   ): MasterDecisionOutput {
     
     const validDecisions = decisions.filter(d => d && d.decision);
     
-    // Adaptive minimum: if we got fewer models than expected (e.g. Gemini in cooldown),
-    // scale down gracefully. Minimum of 1 valid model still allows a decision.
-    const adaptedMinModels = Math.min(minModels, Math.max(1, decisions.length));
+    // Strict minimum: if we got fewer valid decisions than the configured minimum, fail.
+    // (We only relax this if the total expected roles is somehow less than minModels)
+    const strictMinModels = Math.min(minModels, expectedTotalRoles);
     
-    if (validDecisions.length < adaptedMinModels) {
-      return this.createFallback(symbol, `Insufficient models available for consensus. Got ${validDecisions.length}, need ${adaptedMinModels}.`, validDecisions);
+    if (validDecisions.length < strictMinModels) {
+      return this.createFallback(symbol, `Insufficient models available for consensus. Got ${validDecisions.length}, need ${strictMinModels}.`, validDecisions);
     }
     
     let buyWeight = 0;

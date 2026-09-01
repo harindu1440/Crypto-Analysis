@@ -26,6 +26,14 @@ export interface RouterResult<T> {
   failoverCount: number;
 }
 
+// ─── Timeout Error ────────────────────────────────────────────────────────────
+export class TimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TimeoutError';
+  }
+}
+
 // ─── All-fail result type ─────────────────────────────────────────────────────
 export class AIUnavailableError extends Error {
   public readonly attemptedModels: string[];
@@ -36,8 +44,18 @@ export class AIUnavailableError extends Error {
   }
 }
 
+// ─── Tracking Context ─────────────────────────────────────────────────────────
+export interface RouterTrackingContext {
+  analysisRequestId: string;
+  roleRequestId?: string;
+  expectedTotalRoles?: number;
+}
+
 // ─── DynamicModelRouter ───────────────────────────────────────────────────────
 class DynamicModelRouterImpl {
+  // Track active reservations per analysis ID to enforce concentration limits
+  private activeReservations: Map<string, Map<string, number>> = new Map();
+
 
   /**
    * Main entry point.
@@ -53,7 +71,8 @@ class DynamicModelRouterImpl {
     schemaName: string,
     systemPrompt: string | undefined,
     taskLabel: string,
-    requiredCapabilities?: Partial<ModelCapabilities>
+    requiredCapabilities?: Partial<ModelCapabilities>,
+    trackingContext?: RouterTrackingContext
   ): Promise<RouterResult<T>> {
     const attempted: string[] = [];
     let failoverCount = 0;
@@ -63,7 +82,7 @@ class DynamicModelRouterImpl {
     while (attempted.length < MAX_FAILOVER_ATTEMPTS) {
       let selected: ModelRegistryEntry;
       try {
-        selected = this.selectAndReserveModel(attempted, requiredCapabilities);
+        selected = this.selectAndReserveModel(attempted, requiredCapabilities, trackingContext);
       } catch (err) {
         if (err instanceof AIUnavailableError) {
            this.logPoolStatus(taskLabel, attempted);
@@ -140,7 +159,7 @@ class DynamicModelRouterImpl {
         console.log(`[AI Router] ${taskLabel}: Selecting replacement model...`);
         // Continue to next iteration to pick next best model
       } finally {
-        this.releaseModel(selected.id);
+        this.releaseModel(selected.id, trackingContext?.analysisRequestId);
       }
     }
 
@@ -152,7 +171,11 @@ class DynamicModelRouterImpl {
   /**
    * Atomically select and reserve a model, incrementing its active requests count.
    */
-  public selectAndReserveModel(excludeIds: string[], requiredCapabilities?: Partial<ModelCapabilities>): ModelRegistryEntry {
+  public selectAndReserveModel(
+      excludeIds: string[], 
+      requiredCapabilities?: Partial<ModelCapabilities>,
+      trackingContext?: RouterTrackingContext
+  ): ModelRegistryEntry {
     const candidates = ModelRegistry.getEligible(excludeIds).filter(model => {
        if (!requiredCapabilities) return true;
        // Check if model satisfies all required capabilities
@@ -165,22 +188,71 @@ class DynamicModelRouterImpl {
     if (candidates.length === 0) {
       throw new AIUnavailableError(excludeIds);
     }
+    
+    // Evaluate concentration
+    let concentrationCounts: Map<string, number> | undefined;
+    if (trackingContext?.analysisRequestId) {
+       concentrationCounts = this.activeReservations.get(trackingContext.analysisRequestId);
+    }
+    const maxConcentrationPercent = parseInt(process.env.AI_MAX_MODEL_CONCENTRATION_PERCENT || '40');
+    const expectedRoles = trackingContext?.expectedTotalRoles || 5;
 
     const selected = candidates.reduce((best, current) => {
-      return ModelRegistry.score(current) > ModelRegistry.score(best) ? current : best;
+      let bestScore = ModelRegistry.score(best);
+      let currentScore = ModelRegistry.score(current);
+      
+      const now = Date.now();
+      // Recent usage penalty: If used in the last 15 seconds (e.g. for screening), penalize slightly
+      if (best.lastUsedAt && (now - best.lastUsedAt) < 15000) bestScore -= 0.15;
+      if (current.lastUsedAt && (now - current.lastUsedAt) < 15000) currentScore -= 0.15;
+      
+      // Concentration penalty
+      if (concentrationCounts) {
+         const bestCount = concentrationCounts.get(best.id) || 0;
+         const currentCount = concentrationCounts.get(current.id) || 0;
+         if ((bestCount / expectedRoles) * 100 > maxConcentrationPercent) bestScore -= 0.4;
+         if ((currentCount / expectedRoles) * 100 > maxConcentrationPercent) currentScore -= 0.4;
+      }
+      
+      return currentScore > bestScore ? current : best;
     });
 
     selected.activeRequests++;
+    
+    // Track reservation
+    if (trackingContext?.analysisRequestId) {
+       if (!this.activeReservations.has(trackingContext.analysisRequestId)) {
+          this.activeReservations.set(trackingContext.analysisRequestId, new Map());
+       }
+       const counts = this.activeReservations.get(trackingContext.analysisRequestId)!;
+       counts.set(selected.id, (counts.get(selected.id) || 0) + 1);
+    }
+    
     return selected;
   }
 
   /**
    * Release a previously reserved model.
    */
-  public releaseModel(id: string): void {
+  public releaseModel(id: string, analysisRequestId?: string): void {
      const model = ModelRegistry.get(id);
      if (model && model.activeRequests > 0) {
         model.activeRequests--;
+     }
+     
+     if (analysisRequestId) {
+        const counts = this.activeReservations.get(analysisRequestId);
+        if (counts && counts.has(id)) {
+           const newCount = counts.get(id)! - 1;
+           if (newCount <= 0) {
+              counts.delete(id);
+           } else {
+              counts.set(id, newCount);
+           }
+           if (counts.size === 0) {
+              this.activeReservations.delete(analysisRequestId);
+           }
+        }
      }
   }
 
@@ -235,7 +307,7 @@ class DynamicModelRouterImpl {
    */
   private withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+      const timer = setTimeout(() => reject(new TimeoutError(timeoutMessage)), ms);
       promise.then(
         (val) => { clearTimeout(timer); resolve(val); },
         (err) => { clearTimeout(timer); reject(err); }

@@ -64,7 +64,8 @@ export const AgentRunner = {
     }
 
     activeAnalysisLocks.add(lockKey);
-    console.log(`[AgentRunner] Started AI analysis pipeline for ${symbol}`);
+    const analysisRequestId = crypto.randomUUID();
+    console.log(`[AgentRunner] Started AI analysis pipeline for ${symbol} (ID: ${analysisRequestId})`);
 
     try {
       // ── 1. Get Market Data Snapshot ─────────────────────────────────────────
@@ -79,7 +80,9 @@ export const AgentRunner = {
           JSON.stringify(data),
           'ScreeningAnalysis',
           `${PROMPTS.screening.description}\n${PROMPTS.screening.instructions}`,
-          `Screening:${symbol}`
+          `Screening:${symbol}`,
+          undefined,
+          { analysisRequestId, roleRequestId: crypto.randomUUID(), expectedTotalRoles: 1 }
         );
         screeningResult = routerResult.data;
         screeningModelId = routerResult.modelId;
@@ -162,7 +165,9 @@ export const AgentRunner = {
             JSON.stringify({ data, agentResults: allAgentResults }),
             'MasterDecision',
             `${PROMPTS.master.description}\n${PROMPTS.master.instructions}`,
-            `MasterDecision:${symbol}`
+            `MasterDecision:${symbol}`,
+            undefined,
+            { analysisRequestId, roleRequestId: crypto.randomUUID(), expectedTotalRoles: 1 }
           );
           const masterDecisionRaw = masterRes.data;
 
@@ -223,7 +228,8 @@ export const AgentRunner = {
             'MasterDecision',
             `${roleConfig.description}\n${roleConfig.instructions}`,
             `RoleDecision[${role}]:${symbol}`,
-            requiredCapabilities
+            requiredCapabilities,
+            { analysisRequestId, roleRequestId: crypto.randomUUID(), expectedTotalRoles: rolePromptKeys.length }
           ).then(res => ({ ...res.data, provider: res.modelId, role }));
         });
 
@@ -244,7 +250,13 @@ export const AgentRunner = {
           return makeUnavailableResult(symbol, eligibleModels.map(e => e.id));
         }
 
-        finalResult = ConsensusEngine.calculateConsensus(symbol, validDecisions, minModels, minConsensusPercent);
+        finalResult = ConsensusEngine.calculateConsensus(
+           symbol, 
+           validDecisions, 
+           minModels, 
+           minConsensusPercent,
+           rolePromptKeys.length
+        );
         AIPerformanceTracker.trackConsensus(finalResult, validDecisions);
       }
 

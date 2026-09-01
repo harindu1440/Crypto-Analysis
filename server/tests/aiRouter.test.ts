@@ -47,10 +47,12 @@ function makeEntry(
     cooldownUntil: null,
     quotaResetAt: null,
     consecutiveFailures: 0,
+    timeoutCount: 0,
     totalRequests: 0,
     successfulRequests: 0,
     failedRequests: 0,
     totalLatencyMs: 0,
+    averageLatencyMs: 0,
     lastUsedAt: null,
     lastFailureAt: null,
     lastSuccessAt: null,
@@ -239,7 +241,7 @@ describe('Phase 20.2: DynamicModelRouter', () => {
     expect(ModelRegistry.classifyError(new Error('Groq API is OFFLINE'))).toBe('AUTHENTICATION_ERROR');
     expect(ModelRegistry.classifyError(new Error('401 Unauthorized'))).toBe('AUTHENTICATION_ERROR');
     expect(ModelRegistry.classifyError(new Error('503 Service Unavailable'))).toBe('PROVIDER_ERROR');
-    expect(ModelRegistry.classifyError(new Error('timeout'))).toBe('PROVIDER_ERROR');
+    expect(ModelRegistry.classifyError(new Error('timeout'))).toBe('TIMEOUT');
   });
 
   // ── 10. Disabled model never selected ──────────────────────────────────────
@@ -331,5 +333,79 @@ describe('Phase 20.2: DynamicModelRouter', () => {
     const invalidParam = ModelRegistry.classifyError(new Error('Groq API Error: 400 Bad Request - invalid parameter'));
     expect(invalidParam).toBe('INVALID_REQUEST');
   });
-});
 
+  // ── 15. Network Error ───────────────────────────────────────────────────────
+  it('fetch failed is classified as NETWORK_ERROR and triggers fast COOLDOWN', () => {
+    const errorCls = ModelRegistry.classifyError(new Error('fetch failed'));
+    expect(errorCls).toBe('NETWORK_ERROR');
+    
+    // Simulate updating registry
+    const provider = makeProvider('hf', async () => ({}));
+    const entry = makeEntry('hf:llama', 'huggingface', 4, provider);
+    resetRegistry(entry);
+    
+    // The router would normally call this:
+    ModelRegistry.recordFailure('hf:llama', new Error('fetch failed'));
+    expect(entry.status).toBe('COOLDOWN');
+    // Network cooldown is half of normal, so < 60000ms
+    expect(entry.cooldownUntil).toBeLessThanOrEqual(Date.now() + 30000);
+  });
+
+  // ── 16. Timeout Error ───────────────────────────────────────────────────────
+  it('timeout error is classified as TIMEOUT and penalizes latency', () => {
+    const errorCls = ModelRegistry.classifyError(new Error('request timeout after 15000ms'));
+    expect(errorCls).toBe('TIMEOUT');
+    
+    const provider = makeProvider('or', async () => ({}));
+    const entry = makeEntry('or:free', 'openrouter', 4, provider);
+    resetRegistry(entry);
+    
+    ModelRegistry.recordFailure('or:free', new Error('request timeout after 15000ms'));
+    expect(entry.timeoutCount).toBe(1);
+    expect(entry.averageLatencyMs).toBeGreaterThan(0);
+    
+    // Hit timeout multiple times to degrade to SLOW
+    ModelRegistry.recordFailure('or:free', new Error('request timeout after 15000ms'));
+    ModelRegistry.recordFailure('or:free', new Error('request timeout after 15000ms'));
+    expect(entry.status).toBe('SLOW');
+  });
+
+  // ── 17. Fallback Diversification & Concentration ──────────────────────────────
+  it('distributes fallback requests when using same analysisRequestId', () => {
+    const gemini = makeProvider('gemini', async () => ({}));
+    const groq = makeProvider('groq', async () => ({}));
+    const orA = makeProvider('orA', async () => ({}));
+    const orB = makeProvider('orB', async () => ({}));
+
+    // Give them all enough capacity
+    const geminiEntry = makeEntry('gemini', 'gemini', 1, gemini); geminiEntry.maxConcurrentRequests = 5;
+    const groqEntry = makeEntry('groq', 'groq', 2, groq); groqEntry.maxConcurrentRequests = 5;
+    const orAEntry = makeEntry('orA', 'openrouter', 3, orA); orAEntry.maxConcurrentRequests = 5;
+    const orBEntry = makeEntry('orB', 'openrouter', 4, orB); orBEntry.maxConcurrentRequests = 5;
+    
+    resetRegistry(geminiEntry, groqEntry, orAEntry, orBEntry);
+
+    const context = { analysisRequestId: 'test-123', expectedTotalRoles: 4 };
+
+    // Request 1
+    const r1 = DynamicModelRouter.selectAndReserveModel([], undefined, context);
+    expect(r1.id).toBe('gemini'); // Highest priority
+
+    // Request 2
+    const r2 = DynamicModelRouter.selectAndReserveModel([], undefined, context);
+    
+    // Request 3
+    const r3 = DynamicModelRouter.selectAndReserveModel([], undefined, context);
+    
+    // Request 4
+    const r4 = DynamicModelRouter.selectAndReserveModel([], undefined, context);
+
+    // Because of load penalty and concentration penalty, the reservations should be distributed
+    const ids = [r1.id, r2.id, r3.id, r4.id];
+    const uniqueIds = new Set(ids);
+    expect(uniqueIds.size).toBeGreaterThan(1);
+    
+    // Release them
+    ids.forEach(id => DynamicModelRouter.releaseModel(id, context.analysisRequestId));
+  });
+});
