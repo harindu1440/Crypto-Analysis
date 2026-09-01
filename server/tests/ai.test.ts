@@ -21,6 +21,7 @@ jest.mock('../services/ai/aiAgent', () => {
   return {
     AIAgent: jest.fn().mockImplementation(() => {
       return {
+        analyzeScreening: jest.fn().mockResolvedValue({ status: 'SUCCESS', passScreening: true, confidence: 90, reasoning: 'test' }),
         analyzeMarketContext: jest.fn().mockResolvedValue({ broaderTrend: 'BULLISH', marketCondition: 'RANGING' }),
         analyzeTechnicals: jest.fn().mockResolvedValue({ technicalBias: 'BULLISH', technicalReasoning: 'Test' }),
         analyzePatterns: jest.fn().mockResolvedValue({ bias: 'BULLISH', patternInterpretation: 'Test' }),
@@ -65,7 +66,7 @@ describe('Phase 14: Gemini Intelligence Engine', () => {
   test('GeminiProvider handles offline state if no API key', async () => {
     delete process.env.GEMINI_API_KEY;
     const provider = new GeminiProvider();
-    await expect(provider.generateObject('test', 'MarketContext')).rejects.toThrow('Gemini API is OFFLINE');
+    await expect(provider.generateObject('test', 'MarketContext')).rejects.toThrow('Gemini API is unavailable or Quota Exhausted');
   });
 
   test('AgentRunner validation rejects invalid LONG setup', async () => {

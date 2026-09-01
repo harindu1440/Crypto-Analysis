@@ -1,6 +1,12 @@
 export type AgentStatus = 'UNAVAILABLE' | 'COMPLETE' | 'ANALYZING' | 'ERROR';
 export type Decision = 'NO_TRADE' | 'WATCH' | 'CANDIDATE_TRADE';
 export type TradeSide = 'LONG' | 'SHORT';
+
+export interface ScreeningAnalysisOutput {
+  status: 'UNAVAILABLE' | 'COMPLETE' | 'ANALYZING' | 'ERROR';
+  passScreening: boolean;
+  reasoning: string;
+}
 export type MarketBias = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME';
 
@@ -76,7 +82,7 @@ export interface TradeCandidate {
 }
 
 export interface MasterDecisionOutput {
-  analysisId: string;
+  analysisId?: string;
   symbol: string;
   timestamp: number;
   provider: string;

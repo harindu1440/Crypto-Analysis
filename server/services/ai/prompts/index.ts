@@ -1,4 +1,9 @@
 export const PROMPTS = {
+  screening: {
+    version: 'v1',
+    description: 'You are a Screening Agent. Your job is to quickly evaluate if there is any meaningful market structure or volatility to warrant a full deep-dive analysis. You run before other agents to save API quota.',
+    instructions: `Review the OHLCV, volatility, and technical snapshot. Output MUST match the requested JSON schema. If the market is completely flat or random noise with no meaningful setup forming, return passScreening: false.`
+  },
   marketContext: {
     version: 'v1',
     description: 'You are a Market Context Agent. Evaluate the broader market conditions based on the provided technical analysis snapshot.',

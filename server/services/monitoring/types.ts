@@ -9,6 +9,7 @@ export interface AssetMonitorState {
   enabled: boolean;
   
   lastPrice?: number;
+  lastAiPrice?: number;
   lastAnalysisAt?: number;
   
   analysisInProgress: boolean;

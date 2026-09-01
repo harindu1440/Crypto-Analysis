@@ -146,14 +146,29 @@ class GlobalMonitoringOrchestrator {
             }
         }
         if (candidateToRun) {
-            this.runAnalysisPipeline(candidateToRun.symbol).catch(err => {
-                const state = this.state.get(candidateToRun.symbol);
-                if (state) {
-                    state.lastError = err.message;
-                    state.analysisInProgress = false;
+            // Deterministic Pre-filter: Has anything actually changed?
+            const state = this.state.get(candidateToRun.symbol);
+            const opp = activeOpps.find(o => o.symbol === candidateToRun.symbol);
+            let shouldAnalyze = true;
+            if (state && state.lastAiPrice && state.lastPrice) {
+                const priceDelta = Math.abs((state.lastPrice - state.lastAiPrice) / state.lastAiPrice) * 100;
+                // If price hasn't moved at least 0.5% (or 0.1% if approaching entry), skip AI
+                const threshold = opp?.status === 'APPROACHING_ENTRY' ? 0.1 : 0.5;
+                if (priceDelta < threshold) {
+                    shouldAnalyze = false;
+                    // Update last analysis time to push it back in the queue
+                    state.lastAnalysisAt = Date.now();
                 }
-                console.error(`[GlobalMonitor] Pipeline Error for ${candidateToRun?.symbol}: ${err.message}`);
-            });
+            }
+            if (shouldAnalyze) {
+                this.runAnalysisPipeline(candidateToRun.symbol).catch(err => {
+                    if (state) {
+                        state.lastError = err.message;
+                        state.analysisInProgress = false;
+                    }
+                    console.error(`[GlobalMonitor] Pipeline Error for ${candidateToRun?.symbol}: ${err.message}`);
+                });
+            }
         }
     }
     async runAnalysisPipeline(symbol) {
@@ -162,6 +177,7 @@ class GlobalMonitoringOrchestrator {
             return;
         state.analysisInProgress = true;
         state.lastAnalysisAt = Date.now();
+        state.lastAiPrice = state.lastPrice;
         try {
             const masterDecision = await agentRunner_1.AgentRunner.runAnalysis(symbol);
             state.lastAnalysisId = masterDecision.analysisId;

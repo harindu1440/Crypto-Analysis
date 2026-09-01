@@ -3,7 +3,7 @@ import { BinanceMarketService } from '../binance/binanceMarketService';
 import { AccountSyncService } from '../account/accountSyncService';
 import { GlobalMonitoringService } from '../monitoring/globalMonitoringService';
 import { AlertService } from './alertService';
-import { GeminiProvider } from '../ai/providers/geminiProvider';
+import { GeminiBudgetManager } from '../ai/geminiBudgetManager';
 import { OpportunityService } from '../opportunities/opportunityService';
 
 export const SystemHealthService = {
@@ -53,7 +53,7 @@ export const SystemHealthService = {
     }
 
     // 5. Phase 15 AI & Opportunity Engine
-    const aiStatus = GeminiProvider.lastStatus;
+    const aiStatus = GeminiBudgetManager.getStatus().status;
     const opps = OpportunityService.getOpportunities();
     
     const opportunityStats = {

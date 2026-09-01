@@ -137,7 +137,7 @@ export const RiskEngine = {
 
     return {
       planId: crypto.randomUUID(),
-      analysisId: analysis.analysisId,
+      analysisId: analysis.analysisId || 'unknown',
       symbol: analysis.symbol,
       createdAt: Date.now(),
       expiresAt,

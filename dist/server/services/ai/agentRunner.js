@@ -35,7 +35,30 @@ exports.AgentRunner = {
         try {
             // 1. Get Normalized Market Data Snapshot
             const data = await analysisService_1.AnalysisService.getAnalysisSnapshot(symbol, ['15m', '1h', '4h', '1d']);
-            // 2. Run independent specialist agents concurrently
+            // 2. Run Lightweight Screening First
+            const screening = await agent.analyzeScreening(data);
+            if (!screening.passScreening || screening.status === 'ERROR') {
+                const result = {
+                    analysisId: crypto_1.default.randomUUID(),
+                    symbol,
+                    timestamp: Date.now(),
+                    provider: provider.name,
+                    decision: 'NO_TRADE',
+                    confidence: 0,
+                    timeframe: '1h',
+                    marketBias: 'NEUTRAL',
+                    reasoning: screening.status === 'ERROR' ? 'Screening failed (Quota/Error).' : 'Screening rejected: No meaningful setup forming.',
+                    supportingFactors: [],
+                    conflictingFactors: [],
+                    riskLevel: 'LOW',
+                    tradeCandidate: null,
+                    agentResults: { screening },
+                    consensusScore: '0/0'
+                };
+                console.log(`[AgentRunner] Completed AI screening for ${symbol}. Decision: NO_TRADE (${result.reasoning})`);
+                return result;
+            }
+            // 3. Run independent specialist agents concurrently
             // Run independent specialist agents sequentially or in small batches to respect Gemini Free Tier 15 RPM limit
             const marketContext = await agent.analyzeMarketContext(data);
             const technical = await agent.analyzeTechnicals(data);
@@ -199,8 +222,28 @@ exports.AgentRunner = {
         }
         catch (e) {
             console.error(`[AgentRunner] Analysis failed for ${symbol}:`, e.message);
+            if (e.message?.includes('DAILY_QUOTA_EXHAUSTED')) {
+                console.warn(`[AgentRunner] DAILY QUOTA EXHAUSTED for ${symbol}. Marking as NO_TRADE / INCOMPLETE.`);
+                return {
+                    analysisId: crypto_1.default.randomUUID(),
+                    symbol,
+                    timestamp: Date.now(),
+                    provider: provider.name,
+                    decision: 'NO_TRADE',
+                    confidence: 0,
+                    timeframe: '1h',
+                    marketBias: 'NEUTRAL',
+                    reasoning: 'ANALYSIS_INCOMPLETE: Daily Quota Exhausted. Existing opportunities will be tracked deterministically.',
+                    supportingFactors: [],
+                    conflictingFactors: ['API Quota Exhausted'],
+                    riskLevel: 'LOW',
+                    tradeCandidate: null,
+                    agentResults: {},
+                    consensusScore: '0/0'
+                };
+            }
             // If we hit rate limits or Gemini is down, pause new requests for 60 seconds
-            if (e.message?.includes('429') || e.message?.includes('500') || e.message?.includes('RESOURCE_EXHAUSTED')) {
+            if (e.message?.includes('429') || e.message?.includes('500') || e.message?.includes('RESOURCE_EXHAUSTED') || e.message?.includes('Quota Exhausted')) {
                 if (!aiSystemPaused) {
                     console.warn('[AgentRunner] ⚠️ Gemini failure detected. Pausing new AI requests for 60 seconds.');
                     aiSystemPaused = true;

@@ -1,9 +1,18 @@
 import { AIProvider } from './provider.interface';
 import { GoogleGenAI, Type, Schema } from '@google/genai';
 import { AlertService } from '../../system/alertService';
-
+import { GeminiBudgetManager } from '../geminiBudgetManager';
 // Define Schemas for Structured Output
 const SCHEMAS: Record<string, Schema> = {
+  ScreeningAnalysis: {
+    type: Type.OBJECT,
+    properties: {
+      status: { type: Type.STRING, enum: ['UNAVAILABLE', 'COMPLETE', 'ANALYZING', 'ERROR'] },
+      passScreening: { type: Type.BOOLEAN },
+      reasoning: { type: Type.STRING }
+    },
+    required: ['status', 'passScreening', 'reasoning']
+  },
   MarketContext: {
     type: Type.OBJECT,
     properties: {
@@ -126,25 +135,18 @@ export class GeminiProvider implements AIProvider {
   private fastModel: string;
   private deepModel: string;
   
-  // Rate limiting & Observability
-  private requestsThisMinute = 0;
-  private resetTime = Date.now() + 60000;
-  public static lastStatus: 'HEALTHY' | 'DEGRADED' | 'OFFLINE' = 'OFFLINE';
-
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       console.warn('[GeminiProvider] No GEMINI_API_KEY provided. AI is OFFLINE.');
-      GeminiProvider.lastStatus = 'OFFLINE';
       // Mock ai to prevent hard crashes if called before check
       this.ai = new GoogleGenAI({ apiKey: 'mock' });
     } else {
       this.ai = new GoogleGenAI({ apiKey });
-      GeminiProvider.lastStatus = 'HEALTHY';
     }
     
-    let fast = process.env.GEMINI_FAST_MODEL || 'gemini-3.6-flash';
-    let deep = process.env.GEMINI_DEEP_MODEL || 'gemini-3.6-flash';
+    let fast = process.env.GEMINI_SCREENING_MODEL || 'gemini-3.6-flash';
+    let deep = process.env.GEMINI_MASTER_MODEL || 'gemini-3.6-flash';
     
     if (fast.includes('2.5')) fast = 'gemini-3.6-flash';
     if (deep.includes('2.5')) deep = 'gemini-3.6-flash';
@@ -153,20 +155,9 @@ export class GeminiProvider implements AIProvider {
     this.deepModel = deep;
   }
 
-  private checkRateLimit() {
-    if (Date.now() > this.resetTime) {
-      this.requestsThisMinute = 0;
-      this.resetTime = Date.now() + 60000;
-    }
-    if (this.requestsThisMinute > 15) {
-      throw new Error('Local Rate Limit Exceeded (15/min limit for safety)');
-    }
-    this.requestsThisMinute++;
-  }
-
   async generateObject<T>(prompt: string, schemaName: string, systemPrompt?: string): Promise<T> {
-    if (GeminiProvider.lastStatus === 'OFFLINE' || !process.env.GEMINI_API_KEY) {
-      throw new Error('Gemini API is OFFLINE');
+    if (!GeminiBudgetManager.canMakeRequest()) {
+      throw new Error('Gemini API is unavailable or Quota Exhausted');
     }
 
     const schema = SCHEMAS[schemaName];
@@ -181,8 +172,6 @@ export class GeminiProvider implements AIProvider {
 
     while (retries >= 0) {
       try {
-        this.checkRateLimit();
-        
         const response = await this.ai.models.generateContent({
           model: modelToUse,
           contents: prompt,
@@ -199,24 +188,30 @@ export class GeminiProvider implements AIProvider {
         }
 
         const parsed = JSON.parse(response.text);
-        GeminiProvider.lastStatus = 'HEALTHY';
+        GeminiBudgetManager.recordRequest(true);
         return parsed as T;
       } catch (err: any) {
+        GeminiBudgetManager.recordRequest(false);
         retries--;
         console.error(`[GeminiProvider] Error calling Gemini (Model: ${modelToUse}, Schema: ${schemaName}):`, err.message);
         
-        if (err.message.includes('Rate Limit') || err.message.includes('429') || err.message.includes('quota')) {
-           GeminiProvider.lastStatus = 'DEGRADED';
-           AlertService.log('WARNING', 'AI', 'Gemini API Rate Limit hit. Retrying...');
-           // If error message has "Please retry in 13.5s", try to parse it
+        // 1. Daily Quota Exhausted
+        if (err.message.includes('GenerateRequestsPerDayPerProjectFreeTier') || (err.message.includes('429') && err.message.includes('quota'))) {
+           GeminiBudgetManager.markQuotaExhausted(true);
+           throw new Error('DAILY_QUOTA_EXHAUSTED'); // Stop retry storm immediately
+        }
+        
+        // 2. Temporary Rate Limit
+        if (err.message.includes('Rate Limit') || err.message.includes('429')) {
            const retryMatch = err.message.match(/retry in ([\d\.]+)s/);
            if (retryMatch) {
              delay = Math.max(delay, (parseFloat(retryMatch[1]) * 1000) + 1000);
            } else {
              delay = Math.max(delay, 10000); // Default to 10s backoff for rate limits
            }
+           GeminiBudgetManager.markQuotaExhausted(false, delay);
         } else if (err.message.includes('50') || err.message.includes('timeout')) {
-           GeminiProvider.lastStatus = 'DEGRADED';
+           GeminiBudgetManager.markQuotaExhausted(false, delay);
         }
 
         if (retries < 0) {

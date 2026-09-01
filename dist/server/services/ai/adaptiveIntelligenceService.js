@@ -55,13 +55,15 @@ exports.AdaptiveIntelligenceService = {
             calibratedQualityScore = Math.min(100, Math.max(0, qualityEval.score + boundedScoreDelta));
             adaptiveStatus = profile.reliability;
             historicalContext = `Based on ${sampleSize} similar setups, historical win rate is ${profile.winRate.toFixed(1)}% with an average of +${profile.avgR.toFixed(2)}R.`;
-            this.logAdaptiveChange(rawSignal.analysisId, qualityEval.score, calibratedQualityScore, rawSignal.confidence, calibratedConfidence, profile.profileVersion, `Adjusted based on historical expectancy of ${expectedR.toFixed(2)}`);
+            this.logAdaptiveChange(rawSignal.analysisId || 'unknown', qualityEval.score, calibratedQualityScore, rawSignal.confidence, calibratedConfidence, profile.profileVersion, `Adjusted based on historical expectancy of ${expectedR.toFixed(2)}`);
         }
         else {
             // Exploration Logic (Cold Start)
             if (qualityEval.score >= parseInt(process.env.MIN_EXPLORATION_SCORE || '75')) {
+                // Find historical outcomes matching this signature
+                const signature = profileKey;
                 historicalContext = 'Exploration Mode: Setup qualifies for deterministic testing despite lack of deep historical data.';
-                this.logAdaptiveChange(rawSignal.analysisId, qualityEval.score, qualityEval.score, rawSignal.confidence, rawSignal.confidence, 0, 'Cold Start Exploration');
+                this.logAdaptiveChange(rawSignal.analysisId || 'unknown', qualityEval.score, qualityEval.score, rawSignal.confidence, rawSignal.confidence, 0, 'Cold Start Exploration');
             }
         }
         return {

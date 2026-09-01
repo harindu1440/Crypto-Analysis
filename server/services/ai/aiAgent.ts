@@ -8,11 +8,29 @@ import {
   LiquidityAnalysisOutput,
   SentimentAnalysisOutput,
   TimeframeAnalysisOutput,
-  RiskAnalysisOutput
+  RiskAnalysisOutput,
+  ScreeningAnalysisOutput
 } from './schemas/types';
 
 export class AIAgent {
   constructor(private provider: AIProvider) {}
+
+  async analyzeScreening(data: TechnicalAnalysisSnapshot): Promise<ScreeningAnalysisOutput> {
+    try {
+      return await this.provider.generateObject<ScreeningAnalysisOutput>(
+        JSON.stringify(data),
+        'ScreeningAnalysis',
+        `${PROMPTS.screening.description}\n${PROMPTS.screening.instructions}`
+      );
+    } catch (e) {
+      console.error('Screening Agent failed:', e);
+      return {
+        status: 'ERROR',
+        passScreening: false,
+        reasoning: 'Screening agent failed.'
+      };
+    }
+  }
 
   async analyzeMarketContext(data: TechnicalAnalysisSnapshot): Promise<MarketContextOutput> {
     try {

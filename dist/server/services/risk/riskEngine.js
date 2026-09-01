@@ -111,7 +111,7 @@ exports.RiskEngine = {
         const expiresAt = Date.now() + (4 * 60 * 60 * 1000);
         return {
             planId: crypto_1.default.randomUUID(),
-            analysisId: analysis.analysisId,
+            analysisId: analysis.analysisId || 'unknown',
             symbol: analysis.symbol,
             createdAt: Date.now(),
             expiresAt,

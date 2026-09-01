@@ -7,6 +7,19 @@ class AIAgent {
     constructor(provider) {
         this.provider = provider;
     }
+    async analyzeScreening(data) {
+        try {
+            return await this.provider.generateObject(JSON.stringify(data), 'ScreeningAnalysis', `${prompts_1.PROMPTS.screening.description}\n${prompts_1.PROMPTS.screening.instructions}`);
+        }
+        catch (e) {
+            console.error('Screening Agent failed:', e);
+            return {
+                status: 'ERROR',
+                passScreening: false,
+                reasoning: 'Screening agent failed.'
+            };
+        }
+    }
     async analyzeMarketContext(data) {
         try {
             return await this.provider.generateObject(JSON.stringify(data), 'MarketContext', `${prompts_1.PROMPTS.marketContext.description}\n${prompts_1.PROMPTS.marketContext.instructions}`);

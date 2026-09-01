@@ -6,7 +6,7 @@ const binanceMarketService_1 = require("../binance/binanceMarketService");
 const accountSyncService_1 = require("../account/accountSyncService");
 const globalMonitoringService_1 = require("../monitoring/globalMonitoringService");
 const alertService_1 = require("./alertService");
-const geminiProvider_1 = require("../ai/providers/geminiProvider");
+const geminiBudgetManager_1 = require("../ai/geminiBudgetManager");
 const opportunityService_1 = require("../opportunities/opportunityService");
 exports.SystemHealthService = {
     async getHealth() {
@@ -52,7 +52,7 @@ exports.SystemHealthService = {
             }
         }
         // 5. Phase 15 AI & Opportunity Engine
-        const aiStatus = geminiProvider_1.GeminiProvider.lastStatus;
+        const aiStatus = geminiBudgetManager_1.GeminiBudgetManager.getStatus().status;
         const opps = opportunityService_1.OpportunityService.getOpportunities();
         const opportunityStats = {
             active: opps.filter(o => ['DETECTED', 'ANALYZING', 'VALIDATING', 'QUALIFIED', 'ACTIVE', 'APPROACHING_ENTRY'].includes(o.status)).length,

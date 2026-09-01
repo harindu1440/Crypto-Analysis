@@ -150,6 +150,7 @@ const Signals: React.FC = () => {
   }
 
   const isAiOffline = aiStatus?.status === 'OFFLINE';
+  const isQuotaExhausted = aiStatus?.status === 'QUOTA_EXHAUSTED';
   const mode = preferences?.mode || 'BEGINNER';
 
   return (
@@ -177,7 +178,17 @@ const Signals: React.FC = () => {
         </div>
       </div>
 
-      {isAiOffline && (
+      {isQuotaExhausted && (
+        <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--color-negative)', padding: '16px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Ban size={20} color="var(--color-negative)" />
+          <div>
+            <h3 style={{ margin: '0 0 4px 0', color: 'var(--color-negative)' }}>AI ENGINE 🔴 QUOTA EXHAUSTED</h3>
+            <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>Daily API quota has been reached. Market monitoring: LIVE | AI analysis: PAUSED. Existing opportunities will continue to be monitored.</p>
+          </div>
+        </div>
+      )}
+
+      {isAiOffline && !isQuotaExhausted && (
         <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--color-negative)', padding: '16px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Ban size={20} color="var(--color-negative)" />
           <div>

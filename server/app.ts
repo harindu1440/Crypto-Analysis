@@ -163,13 +163,13 @@ app.get('/api/ai/analysis/:symbol', (req, res) => {
   res.json(latest);
 });
 
-import { GeminiProvider } from './services/ai/providers/geminiProvider';
+import { GeminiBudgetManager } from './services/ai/geminiBudgetManager';
 
 app.get('/api/ai/status', (req, res) => {
   res.json({
-    status: GeminiProvider.lastStatus || 'OFFLINE',
+    ...GeminiBudgetManager.getStatus(),
     provider: 'gemini-provider',
-    message: GeminiProvider.lastStatus === 'HEALTHY' ? 'AI Multi-Agent pipeline is ready.' : 'AI Service Degraded or Offline'
+    message: GeminiBudgetManager.status === 'HEALTHY' ? 'AI Multi-Agent pipeline is ready.' : 'AI Service Degraded, Exhausted, or Offline'
   });
 });
 

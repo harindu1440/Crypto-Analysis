@@ -16,32 +16,32 @@
   "notifications": [],
   "users": [
     {
-      "id": "3dfc7d7a-8b4c-46f3-b9c3-8e6a5465a761",
+      "id": "71dbcae3-d5e1-4db0-8cb3-bc249c1eb146",
       "email": "u1@example.com",
       "displayName": "U1",
-      "passwordHash": "8e523a654ff03109977c1aa2f8e4e5f07046d49d2176fe70c263eb7504781e7360a05418a9816074a3de5ac09b0ca28bba39f7e373c2e9fe44cb9528156f874a",
-      "salt": "4e6c1a98536be651fb4c1a2ae0265b78",
-      "createdAt": 1788240484875,
-      "updatedAt": 1788240484875,
+      "passwordHash": "a602539b818b3949c2b628dad054b2a488b3299c4bc4a79e0440198ef6962d4b6e98cc6d0f55ce0a4b5734b91dd6f92686b9a979a57987e0448937056d4db4c1",
+      "salt": "5ec2d20f51e8906593669b480e34667e",
+      "createdAt": 1788241790868,
+      "updatedAt": 1788241790868,
       "status": "ACTIVE"
     },
     {
-      "id": "dfd92645-200d-4144-9473-2388c5f5a7b7",
+      "id": "79192107-4ff3-4d55-9d71-43975a3e009f",
       "email": "u2@example.com",
       "displayName": "U2",
-      "passwordHash": "1d3f05a12fbc3788f947355b33f6785dbd981a774bda4bd44df825105042f210cbe7ef5beb1ac4c5e7849504421a01a00b65977d6662a6eb9ef487b02b1d744a",
-      "salt": "a683f51e399cc2836abbc28dafc219ef",
-      "createdAt": 1788240484928,
-      "updatedAt": 1788240484928,
+      "passwordHash": "ebf0c851d7a264c7695c841d6ab82cbfbf159740846b749e23ff6ce4f7f9331ff3a609cffa49790b81ca636728bd597cb3fed4223aa04f52fa91101867f217ec",
+      "salt": "0ba2d4c08257f37d6991a0fe98f8d07e",
+      "createdAt": 1788241790931,
+      "updatedAt": 1788241790931,
       "status": "ACTIVE"
     }
   ],
   "sessions": [],
   "watchlists": {
-    "3dfc7d7a-8b4c-46f3-b9c3-8e6a5465a761": [
+    "71dbcae3-d5e1-4db0-8cb3-bc249c1eb146": [
       "BTCUSDT"
     ],
-    "dfd92645-200d-4144-9473-2388c5f5a7b7": [
+    "79192107-4ff3-4d55-9d71-43975a3e009f": [
       "ETHUSDT"
     ]
   },

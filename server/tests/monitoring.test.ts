@@ -99,7 +99,7 @@ describe('Monitoring Service', () => {
     MonitoringService.addAsset('XRPUSDT');
     MonitoringService.start();
 
-    const mockDecision = { decision: 'NO_TRADE' };
+    const mockDecision = { decision: 'NO_TRADE', analysisId: 'mock' };
     (AgentRunner.runAnalysis as jest.Mock).mockResolvedValue(mockDecision);
 
     const state = (MonitoringService as any).state.get('XRPUSDT');
