@@ -12,8 +12,12 @@ export class ConsensusEngine {
     
     const validDecisions = decisions.filter(d => d && d.decision);
     
-    if (validDecisions.length < minModels) {
-      return this.createFallback(symbol, 'Insufficient models available for consensus.', validDecisions);
+    // Adaptive minimum: if we got fewer models than expected (e.g. Gemini in cooldown),
+    // scale down gracefully. Minimum of 1 valid model still allows a decision.
+    const adaptedMinModels = Math.min(minModels, Math.max(1, decisions.length));
+    
+    if (validDecisions.length < adaptedMinModels) {
+      return this.createFallback(symbol, `Insufficient models available for consensus. Got ${validDecisions.length}, need ${adaptedMinModels}.`, validDecisions);
     }
     
     let buyWeight = 0;

@@ -41,7 +41,22 @@ exports.AgentRunner = {
             // 1. Get Normalized Market Data Snapshot
             const data = await analysisService_1.AnalysisService.getAnalysisSnapshot(symbol, ['15m', '1h', '4h', '1d']);
             // 2. Run Lightweight Screening First
-            const screening = await legacyAgent.analyzeScreening(data);
+            // Pick the best healthy provider for screening — prefer Gemini, fallback to others
+            let screeningAgent = legacyAgent;
+            const geminiHealth = legacyGeminiProvider.getHealth();
+            if (geminiHealth.status === 'COOLDOWN') {
+                const eligible = providerRegistry_1.ProviderRegistry.getEligibleProviders();
+                const fallbackProvider = eligible.find(p => p.provider.name !== 'gemini-provider');
+                if (fallbackProvider) {
+                    screeningAgent = new aiAgent_1.AIAgent(fallbackProvider.provider);
+                    console.log(`[AgentRunner] Gemini in COOLDOWN. Using ${fallbackProvider.provider.name} for screening.`);
+                }
+                else {
+                    console.warn(`[AgentRunner] Gemini in COOLDOWN and no fallback providers available. Skipping ${symbol}.`);
+                    throw new Error('DAILY_QUOTA_EXHAUSTED');
+                }
+            }
+            const screening = await screeningAgent.analyzeScreening(data);
             if (!screening.passScreening || screening.status === 'ERROR') {
                 const result = {
                     analysisId: crypto_1.default.randomUUID(),
@@ -247,7 +262,15 @@ exports.AgentRunner = {
         catch (e) {
             console.error(`[AgentRunner] Analysis failed for ${symbol}:`, e.message);
             if (e.message?.includes('DAILY_QUOTA_EXHAUSTED')) {
-                console.warn(`[AgentRunner] DAILY QUOTA EXHAUSTED for ${symbol}. Marking as NO_TRADE / INCOMPLETE.`);
+                // Check if we have other healthy providers available
+                const healthyAlternatives = providerRegistry_1.ProviderRegistry.getEligibleProviders()
+                    .filter(p => p.provider.name !== 'gemini-provider');
+                if (healthyAlternatives.length > 0) {
+                    console.warn(`[AgentRunner] Gemini quota exhausted for ${symbol}, but ${healthyAlternatives.length} alternative provider(s) exist. Will use them next cycle.`);
+                }
+                else {
+                    console.warn(`[AgentRunner] DAILY QUOTA EXHAUSTED for ${symbol} with no alternatives. Marking as NO_TRADE.`);
+                }
                 return {
                     analysisId: crypto_1.default.randomUUID(),
                     symbol,
@@ -257,7 +280,9 @@ exports.AgentRunner = {
                     confidence: 0,
                     timeframe: '1h',
                     marketBias: 'NEUTRAL',
-                    reasoning: 'ANALYSIS_INCOMPLETE: Daily Quota Exhausted. Existing opportunities will be tracked deterministically.',
+                    reasoning: healthyAlternatives.length > 0
+                        ? `ANALYSIS_INCOMPLETE: Gemini Quota Exhausted. Switching to alternative providers (${healthyAlternatives.map(p => p.provider.name).join(', ')}) next cycle.`
+                        : 'ANALYSIS_INCOMPLETE: All AI quotas exhausted. Existing opportunities tracked deterministically.',
                     supportingFactors: [],
                     conflictingFactors: ['API Quota Exhausted'],
                     riskLevel: 'LOW',
@@ -266,15 +291,16 @@ exports.AgentRunner = {
                     consensusScore: '0/0'
                 };
             }
-            // If we hit rate limits or Gemini is down, pause new requests for 60 seconds
+            // Only pause the entire AI system if ALL providers are failing (not just Gemini)
             if (e.message?.includes('429') || e.message?.includes('500') || e.message?.includes('RESOURCE_EXHAUSTED') || e.message?.includes('Quota Exhausted')) {
-                if (!aiSystemPaused) {
-                    console.warn('[AgentRunner] ⚠️ Gemini failure detected. Pausing new AI requests for 60 seconds.');
+                const healthyProviders = providerRegistry_1.ProviderRegistry.getEligibleProviders();
+                if (healthyProviders.length === 0 && !aiSystemPaused) {
+                    console.warn('[AgentRunner] ⚠️ All AI providers degraded. Pausing new AI requests for 60 seconds.');
                     aiSystemPaused = true;
                     eventBus_1.EventBus.publish({
                         eventType: 'SYSTEM_ALERT',
                         source: 'AgentRunner',
-                        payload: { message: 'AI System Degraded: Rate limit or upstream error. Market monitoring continues.' }
+                        payload: { message: 'AI System Degraded: All providers unavailable. Market monitoring continues.' }
                     });
                     if (aiSystemPauseTimer)
                         clearTimeout(aiSystemPauseTimer);
@@ -282,6 +308,9 @@ exports.AgentRunner = {
                         console.log('[AgentRunner] 🟢 Resuming AI requests.');
                         aiSystemPaused = false;
                     }, 60000);
+                }
+                else if (healthyProviders.length > 0) {
+                    console.log(`[AgentRunner] Gemini failed but ${healthyProviders.length} provider(s) still healthy. AI system remains active.`);
                 }
             }
             throw e;

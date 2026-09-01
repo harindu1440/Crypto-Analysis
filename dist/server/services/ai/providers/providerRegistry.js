@@ -52,6 +52,16 @@ class ProviderRegistry {
         if (!this.initialized)
             this.initialize();
         const configured = this.providers.filter(p => p.provider.isConfigured());
+        // If only Gemini is configured, it's Gemini-only
+        if (configured.length === 1 && configured[0].provider.name === 'gemini-provider')
+            return true;
+        // If Gemini is in COOLDOWN but other providers are healthy, switch to multi-model mode
+        const geminiRegistration = configured.find(p => p.provider.name === 'gemini-provider');
+        const geminiHealth = geminiRegistration?.provider.getHealth();
+        const hasHealthyAlternatives = configured.some(p => p.provider.name !== 'gemini-provider' &&
+            (p.provider.getHealth().status === 'HEALTHY' || p.provider.getHealth().status === 'DEGRADED'));
+        if (geminiHealth?.status === 'COOLDOWN' && hasHealthyAlternatives)
+            return false;
         return configured.length === 1 && configured[0].provider.name === 'gemini-provider';
     }
     static getProviderHealths() {
