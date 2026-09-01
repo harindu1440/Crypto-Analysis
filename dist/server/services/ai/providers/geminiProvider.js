@@ -129,19 +129,16 @@ const SCHEMAS = {
         required: ['decision', 'confidence', 'timeframe', 'marketBias', 'reasoning', 'supportingFactors', 'conflictingFactors', 'riskLevel']
     }
 };
-class GeminiProvider {
+const baseProvider_1 = require("./baseProvider");
+class GeminiProvider extends baseProvider_1.BaseAIProvider {
     name = 'gemini-provider';
-    ai;
+    ai = null;
     fastModel;
     deepModel;
     constructor() {
+        super();
         const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-            console.warn('[GeminiProvider] No GEMINI_API_KEY provided. AI is OFFLINE.');
-            // Mock ai to prevent hard crashes if called before check
-            this.ai = new genai_1.GoogleGenAI({ apiKey: 'mock' });
-        }
-        else {
+        if (apiKey) {
             this.ai = new genai_1.GoogleGenAI({ apiKey });
         }
         let fast = process.env.GEMINI_SCREENING_MODEL || 'gemini-3.6-flash';
@@ -153,7 +150,25 @@ class GeminiProvider {
         this.fastModel = fast;
         this.deepModel = deep;
     }
+    isConfigured() {
+        return this.ai !== null;
+    }
+    // Override getHealth to include GeminiBudgetManager state
+    getHealth() {
+        const baseHealth = super.getHealth();
+        const budgetStatus = geminiBudgetManager_1.GeminiBudgetManager.getStatus();
+        if (budgetStatus.status === 'QUOTA_EXHAUSTED') {
+            baseHealth.status = 'QUOTA_EXHAUSTED';
+        }
+        else if (budgetStatus.status === 'DEGRADED' && baseHealth.status === 'HEALTHY') {
+            baseHealth.status = 'DEGRADED';
+        }
+        return baseHealth;
+    }
     async generateObject(prompt, schemaName, systemPrompt) {
+        if (!this.isConfigured() || !this.ai) {
+            throw new Error('Gemini API is OFFLINE');
+        }
         if (!geminiBudgetManager_1.GeminiBudgetManager.canMakeRequest()) {
             throw new Error('Gemini API is unavailable or Quota Exhausted');
         }
@@ -181,10 +196,12 @@ class GeminiProvider {
                 }
                 const parsed = JSON.parse(response.text);
                 geminiBudgetManager_1.GeminiBudgetManager.recordRequest(true);
+                this.recordSuccess();
                 return parsed;
             }
             catch (err) {
                 geminiBudgetManager_1.GeminiBudgetManager.recordRequest(false);
+                this.recordFailure(err);
                 retries--;
                 console.error(`[GeminiProvider] Error calling Gemini (Model: ${modelToUse}, Schema: ${schemaName}):`, err.message);
                 // 1. Daily Quota Exhausted

@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AIAgent = void 0;
 const prompts_1 = require("./prompts");
+const roles_1 = require("./prompts/roles");
 class AIAgent {
     provider;
     constructor(provider) {
@@ -139,6 +140,22 @@ class AIAgent {
                 riskLevel: 'EXTREME',
                 tradeCandidate: null
             };
+        }
+    }
+    async generateRoleDecision(data, role, providerOverride) {
+        const roleConfig = roles_1.ROLE_PROMPTS[role];
+        if (!roleConfig)
+            throw new Error(`Unknown AI Role: ${role}`);
+        const p = providerOverride || this.provider;
+        try {
+            const result = await p.generateObject(JSON.stringify(data), 'MasterDecision', `${roleConfig.description}\n${roleConfig.instructions}`);
+            result.provider = p.name;
+            result.role = role;
+            return result;
+        }
+        catch (e) {
+            console.error(`[AIAgent] Role Decision failed for ${role} on ${p.name}:`, e.message);
+            throw e;
         }
     }
 }

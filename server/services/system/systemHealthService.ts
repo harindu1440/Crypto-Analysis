@@ -5,8 +5,47 @@ import { GlobalMonitoringService } from '../monitoring/globalMonitoringService';
 import { AlertService } from './alertService';
 import { GeminiBudgetManager } from '../ai/geminiBudgetManager';
 import { OpportunityService } from '../opportunities/opportunityService';
+import { ProviderRegistry } from '../ai/providers/providerRegistry';
 
 export const SystemHealthService = {
+  async getAIStatus() {
+    const aiBudget = GeminiBudgetManager.getStatus();
+    
+    let isHealthy = false;
+    let message = 'AI is OFFLINE';
+    let status = aiBudget.status;
+    
+    let providers: any[] = [];
+    
+    try {
+       providers = ProviderRegistry.getProviderHealths();
+       const healthyProviders = providers.filter(p => p.health.status === 'HEALTHY' || p.health.status === 'DEGRADED');
+       
+       if (healthyProviders.length > 0) {
+         isHealthy = true;
+         status = 'HEALTHY';
+         message = `Multi-Model AI Active (${healthyProviders.length}/${providers.length} providers)`;
+       }
+       
+       if (ProviderRegistry.isGeminiOnly()) {
+         message = 'Legacy Gemini-Only AI Active';
+         status = aiBudget.status;
+         isHealthy = status === 'HEALTHY' || status === 'DEGRADED';
+       }
+    } catch (e) {
+       // Provider Registry not initialized yet
+    }
+    
+    return {
+      status: status,
+      isHealthy,
+      message,
+      providers,
+      dailyRequestsCount: aiBudget.stats ? aiBudget.stats.requestsToday : 0,
+      quotaExhausted: aiBudget.status === 'QUOTA_EXHAUSTED'
+    };
+  },
+
   async getHealth() {
     const health = {
       overall: 'HEALTHY',
@@ -53,7 +92,7 @@ export const SystemHealthService = {
     }
 
     // 5. Phase 15 AI & Opportunity Engine
-    const aiStatus = GeminiBudgetManager.getStatus().status;
+    const aiStatus = (await this.getAIStatus()).status;
     const opps = OpportunityService.getOpportunities();
     
     const opportunityStats = {

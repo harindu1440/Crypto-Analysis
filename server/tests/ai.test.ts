@@ -1,5 +1,6 @@
 import { AgentRunner } from '../services/ai/agentRunner';
 import { GeminiProvider } from '../services/ai/providers/geminiProvider';
+import { ProviderRegistry } from '../services/ai/providers/providerRegistry';
 import { AIAgent } from '../services/ai/aiAgent';
 import { MasterDecisionOutput } from '../services/ai/schemas/types';
 import crypto from 'crypto';
@@ -14,6 +15,14 @@ jest.mock('../services/analysis/analysisService', () => ({
         '1h': { volatility: { level: 'MEDIUM' } }
       }
     })
+  }
+}));
+
+jest.mock('../services/ai/providers/providerRegistry', () => ({
+  ProviderRegistry: {
+    initialize: jest.fn(),
+    isGeminiOnly: jest.fn().mockReturnValue(true),
+    getEligibleProviders: jest.fn().mockReturnValue([])
   }
 }));
 
@@ -59,14 +68,18 @@ describe('Phase 14: Gemini Intelligence Engine', () => {
     process.env.GEMINI_API_KEY = 'mock_key';
   });
 
-  afterEach(() => {
+  beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   test('GeminiProvider handles offline state if no API key', async () => {
     delete process.env.GEMINI_API_KEY;
     const provider = new GeminiProvider();
-    await expect(provider.generateObject('test', 'MarketContext')).rejects.toThrow('Gemini API is unavailable or Quota Exhausted');
+    await expect(provider.generateObject('test', 'MarketContext')).rejects.toThrow('Gemini API is OFFLINE');
   });
 
   test('AgentRunner validation rejects invalid LONG setup', async () => {

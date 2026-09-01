@@ -86,6 +86,8 @@ export interface MasterDecisionOutput {
   symbol: string;
   timestamp: number;
   provider: string;
+  model?: string;
+  role?: string;
   decision: Decision;
   confidence: number;
   timeframe: string;

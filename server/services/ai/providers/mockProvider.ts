@@ -8,7 +8,13 @@ import {
 } from '../schemas/types';
 
 export class MockProvider implements AIProvider {
-  name = 'mock-provider';
+  name: string = 'mock-provider';
+  role: string = 'MOCK_ROLE';
+  
+  isConfigured(): boolean { return true; }
+  getHealth(): any { return { status: 'HEALTHY' }; }
+  recordSuccess(): void {}
+  recordFailure(): void {}
 
   async generateObject<T>(prompt: string, schemaName: string, systemPrompt?: string): Promise<T> {
     // Simulating network delay

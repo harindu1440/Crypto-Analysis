@@ -14,10 +14,18 @@ jest.mock('../services/analysis/analysisService', () => ({
         })
     }
 }));
+jest.mock('../services/ai/providers/providerRegistry', () => ({
+    ProviderRegistry: {
+        initialize: jest.fn(),
+        isGeminiOnly: jest.fn().mockReturnValue(true),
+        getEligibleProviders: jest.fn().mockReturnValue([])
+    }
+}));
 jest.mock('../services/ai/aiAgent', () => {
     return {
         AIAgent: jest.fn().mockImplementation(() => {
             return {
+                analyzeScreening: jest.fn().mockResolvedValue({ status: 'SUCCESS', passScreening: true, confidence: 90, reasoning: 'test' }),
                 analyzeMarketContext: jest.fn().mockResolvedValue({ broaderTrend: 'BULLISH', marketCondition: 'RANGING' }),
                 analyzeTechnicals: jest.fn().mockResolvedValue({ technicalBias: 'BULLISH', technicalReasoning: 'Test' }),
                 analyzePatterns: jest.fn().mockResolvedValue({ bias: 'BULLISH', patternInterpretation: 'Test' }),
@@ -53,8 +61,11 @@ describe('Phase 14: Gemini Intelligence Engine', () => {
     beforeEach(() => {
         process.env.GEMINI_API_KEY = 'mock_key';
     });
-    afterEach(() => {
+    beforeEach(() => {
         jest.clearAllMocks();
+    });
+    afterAll(() => {
+        jest.restoreAllMocks();
     });
     test('GeminiProvider handles offline state if no API key', async () => {
         delete process.env.GEMINI_API_KEY;

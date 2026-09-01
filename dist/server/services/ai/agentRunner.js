@@ -6,14 +6,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AgentRunner = void 0;
 const aiAgent_1 = require("./aiAgent");
 const geminiProvider_1 = require("./providers/geminiProvider");
+const providerRegistry_1 = require("./providers/providerRegistry");
+const consensusEngine_1 = require("./consensusEngine");
 const analysisService_1 = require("../analysis/analysisService");
 const opportunityService_1 = require("../opportunities/opportunityService");
 const signalQualityService_1 = require("./signalQualityService");
 const adaptiveIntelligenceService_1 = require("./adaptiveIntelligenceService");
 const eventBus_1 = require("../system/eventBus");
 const crypto_1 = __importDefault(require("crypto"));
-const provider = new geminiProvider_1.GeminiProvider();
-const agent = new aiAgent_1.AIAgent(provider);
+const aiPerformanceTracker_1 = require("./aiPerformanceTracker");
+// Initialize provider registry
+providerRegistry_1.ProviderRegistry.initialize();
+const legacyGeminiProvider = new geminiProvider_1.GeminiProvider();
+const legacyAgent = new aiAgent_1.AIAgent(legacyGeminiProvider);
 let aiSystemPaused = false;
 let aiSystemPauseTimer = null;
 // In-memory lock to prevent duplicate concurrent analysis
@@ -36,13 +41,13 @@ exports.AgentRunner = {
             // 1. Get Normalized Market Data Snapshot
             const data = await analysisService_1.AnalysisService.getAnalysisSnapshot(symbol, ['15m', '1h', '4h', '1d']);
             // 2. Run Lightweight Screening First
-            const screening = await agent.analyzeScreening(data);
+            const screening = await legacyAgent.analyzeScreening(data);
             if (!screening.passScreening || screening.status === 'ERROR') {
                 const result = {
                     analysisId: crypto_1.default.randomUUID(),
                     symbol,
                     timestamp: Date.now(),
-                    provider: provider.name,
+                    provider: 'Multi-Model-Orchestrator',
                     decision: 'NO_TRADE',
                     confidence: 0,
                     timeframe: '1h',
@@ -58,51 +63,70 @@ exports.AgentRunner = {
                 console.log(`[AgentRunner] Completed AI screening for ${symbol}. Decision: NO_TRADE (${result.reasoning})`);
                 return result;
             }
-            // 3. Run independent specialist agents concurrently
-            // Run independent specialist agents sequentially or in small batches to respect Gemini Free Tier 15 RPM limit
-            const marketContext = await agent.analyzeMarketContext(data);
-            const technical = await agent.analyzeTechnicals(data);
-            const pattern = await agent.analyzePatterns(data);
-            // Add a small 2-second delay to let the bucket refill slightly
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            const timeframe = await agent.analyzeTimeframes(data);
-            const liquidity = await agent.analyzeLiquidity(data);
-            const sentiment = await agent.analyzeSentiment(data);
-            const specialistResults = { marketContext, technical, pattern, timeframe, liquidity, sentiment };
-            // 3. Run Risk Analysis (which needs the other specialist results)
-            const risk = await agent.analyzeRisk(data, specialistResults);
-            const allAgentResults = { ...specialistResults, risk };
-            // 4. Run Master Decision Agent
-            const masterDecisionRaw = await agent.makeMasterDecision(data, allAgentResults);
-            // Calculate Consensus
-            let bullishCount = 0;
-            let bearishCount = 0;
-            const biases = [
-                marketContext.broaderTrend,
-                technical.technicalBias,
-                pattern.bias,
-                liquidity.bias,
-                sentiment.bias
-            ];
-            biases.forEach(b => {
-                if (b === 'BULLISH')
-                    bullishCount++;
-                else if (b === 'BEARISH')
-                    bearishCount++;
-            });
-            const consensusDirection = bullishCount > bearishCount ? 'BULLISH' : (bearishCount > bullishCount ? 'BEARISH' : 'NEUTRAL');
-            const maxScore = Math.max(bullishCount, bearishCount);
-            const consensusScore = `${maxScore}/${biases.length}`;
-            // 5. Build final validated result
-            const finalResult = {
-                analysisId: crypto_1.default.randomUUID(),
-                symbol,
-                timestamp: Date.now(),
-                provider: provider.name,
-                ...masterDecisionRaw,
-                agentResults: allAgentResults,
-                consensusScore
-            };
+            let finalResult;
+            const minModels = parseInt(process.env.AI_MIN_MODELS || '2');
+            const minConsensusPercent = parseInt(process.env.AI_MIN_CONSENSUS_PERCENT || '60');
+            if (providerRegistry_1.ProviderRegistry.isGeminiOnly()) {
+                console.log(`[AgentRunner] Running Legacy Gemini-Only Pipeline for ${symbol}`);
+                // Run independent specialist agents sequentially
+                const marketContext = await legacyAgent.analyzeMarketContext(data);
+                const technical = await legacyAgent.analyzeTechnicals(data);
+                const pattern = await legacyAgent.analyzePatterns(data);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                const timeframe = await legacyAgent.analyzeTimeframes(data);
+                const liquidity = await legacyAgent.analyzeLiquidity(data);
+                const sentiment = await legacyAgent.analyzeSentiment(data);
+                const specialistResults = { marketContext, technical, pattern, timeframe, liquidity, sentiment };
+                const risk = await legacyAgent.analyzeRisk(data, specialistResults);
+                const allAgentResults = { ...specialistResults, risk };
+                const masterDecisionRaw = await legacyAgent.makeMasterDecision(data, allAgentResults);
+                let bullishCount = 0;
+                let bearishCount = 0;
+                const biases = [
+                    marketContext.broaderTrend,
+                    technical.technicalBias,
+                    pattern.bias,
+                    liquidity.bias,
+                    sentiment.bias
+                ];
+                biases.forEach(b => {
+                    if (b === 'BULLISH')
+                        bullishCount++;
+                    else if (b === 'BEARISH')
+                        bearishCount++;
+                });
+                const maxScore = Math.max(bullishCount, bearishCount);
+                const consensusScore = `${maxScore}/${biases.length}`;
+                finalResult = {
+                    analysisId: crypto_1.default.randomUUID(),
+                    symbol,
+                    timestamp: Date.now(),
+                    provider: legacyGeminiProvider.name,
+                    ...masterDecisionRaw,
+                    agentResults: allAgentResults,
+                    consensusScore
+                };
+            }
+            else {
+                console.log(`[AgentRunner] Running Multi-Model Parallel Pipeline for ${symbol}`);
+                const eligibleProviders = providerRegistry_1.ProviderRegistry.getEligibleProviders();
+                const promises = eligibleProviders.map(p => legacyAgent.generateRoleDecision(data, p.role, p.provider));
+                const settled = await Promise.allSettled(promises);
+                const validDecisions = [];
+                settled.forEach((res, i) => {
+                    if (res.status === 'fulfilled') {
+                        validDecisions.push(res.value);
+                        // Track successful model performance
+                        aiPerformanceTracker_1.AIPerformanceTracker.trackDecision(res.value);
+                    }
+                    else {
+                        console.warn(`[AgentRunner] Provider ${eligibleProviders[i].provider.name} failed during Multi-Model Pipeline.`);
+                    }
+                });
+                finalResult = consensusEngine_1.ConsensusEngine.calculateConsensus(symbol, validDecisions, minModels, minConsensusPercent);
+                // Track the final consensus
+                aiPerformanceTracker_1.AIPerformanceTracker.trackConsensus(finalResult, validDecisions);
+            }
             console.log(`[AgentRunner] Completed AI analysis for ${symbol}. Decision: ${finalResult.decision}`);
             // Store in memory cache
             latestAnalysisResults.set(symbol, finalResult);
@@ -169,7 +193,7 @@ exports.AgentRunner = {
                     id: crypto_1.default.randomUUID(),
                     symbol,
                     direction: c.side,
-                    setup: `${consensusDirection} Consensus`,
+                    setup: `${finalResult.marketBias} Consensus`,
                     currentPrice: c.entryZone.max, // Approximation
                     entryZone: c.entryZone,
                     entryPrice: (c.entryZone.min + c.entryZone.max) / 2,
@@ -178,26 +202,26 @@ exports.AgentRunner = {
                     riskRewardRatio: c.riskRewardRatio,
                     confidence: finalResult.confidence,
                     timeframe: finalResult.timeframe,
-                    higherTimeframeBias: timeframe.higherTimeframeBias,
-                    marketStructure: marketContext.marketCondition,
-                    technicalSummary: technical.technicalReasoning,
-                    patternSummary: pattern.patternInterpretation,
-                    liquiditySummary: liquidity.liquidityReasoning,
-                    sentimentSummary: sentiment.sentimentReasoning,
+                    higherTimeframeBias: finalResult.agentResults?.timeframe?.higherTimeframeBias || 'NEUTRAL',
+                    marketStructure: finalResult.agentResults?.marketContext?.marketCondition || 'UNKNOWN',
+                    technicalSummary: finalResult.agentResults?.technical?.technicalReasoning || 'Multi-Model Consensus',
+                    patternSummary: finalResult.agentResults?.pattern?.patternInterpretation || 'Multi-Model Consensus',
+                    liquiditySummary: finalResult.agentResults?.liquidity?.liquidityReasoning || 'Multi-Model Consensus',
+                    sentimentSummary: finalResult.agentResults?.sentiment?.sentimentReasoning || 'Multi-Model Consensus',
                     reason: finalResult.reasoning,
                     invalidationCondition: c.invalidationCondition,
                     agents: [
-                        { name: 'Market Structure', bias: marketContext.broaderTrend, explanation: marketContext.marketCondition },
-                        { name: 'Technical Analysis', bias: technical.technicalBias, explanation: technical.technicalReasoning },
-                        { name: 'Pattern Analysis', bias: pattern.bias, explanation: pattern.patternInterpretation },
-                        { name: 'Liquidity Analysis', bias: liquidity.bias, explanation: liquidity.liquidityReasoning },
-                        { name: 'Sentiment', bias: sentiment.bias, explanation: sentiment.sentimentReasoning }
+                        { name: 'Market Structure', bias: finalResult.agentResults?.marketContext?.broaderTrend || 'NEUTRAL', explanation: finalResult.agentResults?.marketContext?.marketCondition || 'N/A' },
+                        { name: 'Technical Analysis', bias: finalResult.agentResults?.technical?.technicalBias || 'NEUTRAL', explanation: finalResult.agentResults?.technical?.technicalReasoning || 'N/A' },
+                        { name: 'Pattern Analysis', bias: finalResult.agentResults?.pattern?.bias || 'NEUTRAL', explanation: finalResult.agentResults?.pattern?.patternInterpretation || 'N/A' },
+                        { name: 'Liquidity Analysis', bias: finalResult.agentResults?.liquidity?.bias || 'NEUTRAL', explanation: finalResult.agentResults?.liquidity?.liquidityReasoning || 'N/A' },
+                        { name: 'Sentiment', bias: finalResult.agentResults?.sentiment?.bias || 'NEUTRAL', explanation: finalResult.agentResults?.sentiment?.sentimentReasoning || 'N/A' }
                     ],
                     timeframes: [
-                        { timeframe: '1D', bias: timeframe.higherTimeframeBias },
-                        { timeframe: '4H', bias: timeframe.mediumTermBias },
-                        { timeframe: '1H', bias: timeframe.shortTermBias },
-                        { timeframe: '15m', bias: finalResult.decision === 'CANDIDATE_TRADE' ? finalResult.tradeCandidate?.side === 'LONG' ? 'BULLISH' : 'BEARISH' : 'NEUTRAL' }
+                        { timeframe: '1D', bias: finalResult.agentResults?.timeframe?.higherTimeframeBias || 'NEUTRAL' },
+                        { timeframe: '4H', bias: finalResult.agentResults?.timeframe?.mediumTermBias || 'NEUTRAL' },
+                        { timeframe: '1H', bias: finalResult.agentResults?.timeframe?.shortTermBias || 'NEUTRAL' },
+                        { timeframe: '15m', bias: finalResult.decision === 'CANDIDATE_TRADE' ? (finalResult.tradeCandidate?.side === 'LONG' ? 'BULLISH' : 'BEARISH') : 'NEUTRAL' }
                     ],
                     marketData: {
                         price: data.market.price,
@@ -228,7 +252,7 @@ exports.AgentRunner = {
                     analysisId: crypto_1.default.randomUUID(),
                     symbol,
                     timestamp: Date.now(),
-                    provider: provider.name,
+                    provider: 'Multi-Model-Orchestrator',
                     decision: 'NO_TRADE',
                     confidence: 0,
                     timeframe: '1h',

@@ -2,19 +2,23 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const monitoringService_1 = require("../services/monitoring/monitoringService");
 const agentRunner_1 = require("../services/ai/agentRunner");
+const providerRegistry_1 = require("../services/ai/providers/providerRegistry");
 const riskEngine_1 = require("../services/risk/riskEngine");
 const executionScheduler_1 = require("../services/execution/executionScheduler");
 const binanceWebSocketService_1 = require("../services/binance/binanceWebSocketService");
 const analysisService_1 = require("../services/analysis/analysisService");
 jest.mock('../services/ai/agentRunner');
+jest.mock('../services/ai/providers/providerRegistry');
 jest.mock('../services/risk/riskEngine');
 jest.mock('../services/execution/executionScheduler');
 jest.mock('../services/binance/binanceWebSocketService');
 jest.mock('../services/analysis/analysisService');
 describe('Monitoring Service', () => {
     beforeEach(() => {
+        jest.clearAllMocks();
+        providerRegistry_1.ProviderRegistry.isGeminiOnly.mockReturnValue(true);
+        // Default setup
         monitoringService_1.MonitoringService.stop();
-        // clear memory
         const status = monitoringService_1.MonitoringService.getStatus();
         status.assets.forEach(a => monitoringService_1.MonitoringService.removeAsset(a.symbol));
         jest.clearAllMocks();
@@ -37,6 +41,7 @@ describe('Monitoring Service', () => {
         expect(binanceWebSocketService_1.binanceWS.subscribe).toHaveBeenCalledWith(['SOLUSDT']);
     });
     it('does not run analysis on every tick (cooldown/price delta logic)', async () => {
+        agentRunner_1.AgentRunner.runAnalysis.mockResolvedValue({ decision: 'NO_TRADE', analysisId: 'mock123' });
         monitoringService_1.MonitoringService.addAsset('ADAUSDT');
         monitoringService_1.MonitoringService.start();
         // Trigger tick 1 (sets lastPrice)
@@ -76,7 +81,7 @@ describe('Monitoring Service', () => {
     it('stops at NO_TRADE and does not schedule', async () => {
         monitoringService_1.MonitoringService.addAsset('XRPUSDT');
         monitoringService_1.MonitoringService.start();
-        const mockDecision = { decision: 'NO_TRADE' };
+        const mockDecision = { decision: 'NO_TRADE', analysisId: 'mock' };
         agentRunner_1.AgentRunner.runAnalysis.mockResolvedValue(mockDecision);
         const state = monitoringService_1.MonitoringService.state.get('XRPUSDT');
         state.lastPrice = 0.50;

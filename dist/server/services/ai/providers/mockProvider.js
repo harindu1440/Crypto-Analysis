@@ -3,6 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MockProvider = void 0;
 class MockProvider {
     name = 'mock-provider';
+    role = 'MOCK_ROLE';
+    isConfigured() { return true; }
+    getHealth() { return { status: 'HEALTHY' }; }
+    recordSuccess() { }
+    recordFailure() { }
     async generateObject(prompt, schemaName, systemPrompt) {
         // Simulating network delay
         await new Promise(resolve => setTimeout(resolve, 500));

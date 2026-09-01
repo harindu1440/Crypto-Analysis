@@ -129,19 +129,18 @@ const SCHEMAS: Record<string, Schema> = {
   }
 };
 
-export class GeminiProvider implements AIProvider {
+import { BaseAIProvider } from './baseProvider';
+
+export class GeminiProvider extends BaseAIProvider {
   name = 'gemini-provider';
-  private ai: GoogleGenAI;
+  private ai: GoogleGenAI | null = null;
   private fastModel: string;
   private deepModel: string;
   
   constructor() {
+    super();
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.warn('[GeminiProvider] No GEMINI_API_KEY provided. AI is OFFLINE.');
-      // Mock ai to prevent hard crashes if called before check
-      this.ai = new GoogleGenAI({ apiKey: 'mock' });
-    } else {
+    if (apiKey) {
       this.ai = new GoogleGenAI({ apiKey });
     }
     
@@ -155,7 +154,27 @@ export class GeminiProvider implements AIProvider {
     this.deepModel = deep;
   }
 
+  isConfigured(): boolean {
+    return this.ai !== null;
+  }
+
+  // Override getHealth to include GeminiBudgetManager state
+  getHealth() {
+    const baseHealth = super.getHealth();
+    const budgetStatus = GeminiBudgetManager.getStatus();
+    if (budgetStatus.status === 'QUOTA_EXHAUSTED') {
+      baseHealth.status = 'QUOTA_EXHAUSTED';
+    } else if (budgetStatus.status === 'DEGRADED' && baseHealth.status === 'HEALTHY') {
+      baseHealth.status = 'DEGRADED';
+    }
+    return baseHealth;
+  }
+
   async generateObject<T>(prompt: string, schemaName: string, systemPrompt?: string): Promise<T> {
+    if (!this.isConfigured() || !this.ai) {
+      throw new Error('Gemini API is OFFLINE');
+    }
+    
     if (!GeminiBudgetManager.canMakeRequest()) {
       throw new Error('Gemini API is unavailable or Quota Exhausted');
     }
@@ -189,9 +208,11 @@ export class GeminiProvider implements AIProvider {
 
         const parsed = JSON.parse(response.text);
         GeminiBudgetManager.recordRequest(true);
+        this.recordSuccess();
         return parsed as T;
       } catch (err: any) {
         GeminiBudgetManager.recordRequest(false);
+        this.recordFailure(err);
         retries--;
         console.error(`[GeminiProvider] Error calling Gemini (Model: ${modelToUse}, Schema: ${schemaName}):`, err.message);
         

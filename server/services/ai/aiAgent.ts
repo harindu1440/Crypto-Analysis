@@ -1,6 +1,7 @@
 import { AIProvider } from './providers/provider.interface';
 import { TechnicalAnalysisSnapshot } from '../analysis/types';
 import { PROMPTS } from './prompts';
+import { ROLE_PROMPTS } from './prompts/roles';
 import {
   MarketContextOutput,
   TechnicalAnalysisOutput,
@@ -182,6 +183,33 @@ export class AIAgent {
         riskLevel: 'EXTREME',
         tradeCandidate: null
       };
+    }
+  }
+
+  async generateRoleDecision(
+    data: TechnicalAnalysisSnapshot,
+    role: string,
+    providerOverride?: AIProvider
+  ): Promise<any> {
+    const roleConfig = ROLE_PROMPTS[role];
+    if (!roleConfig) throw new Error(`Unknown AI Role: ${role}`);
+    
+    const p = providerOverride || this.provider;
+    
+    try {
+      const result = await p.generateObject<any>(
+        JSON.stringify(data),
+        'MasterDecision',
+        `${roleConfig.description}\n${roleConfig.instructions}`
+      );
+      
+      result.provider = p.name;
+      result.role = role;
+      
+      return result;
+    } catch (e: any) {
+      console.error(`[AIAgent] Role Decision failed for ${role} on ${p.name}:`, e.message);
+      throw e;
     }
   }
 }

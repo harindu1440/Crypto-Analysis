@@ -178,6 +178,26 @@ const Signals: React.FC = () => {
         </div>
       </div>
 
+      {aiStatus?.providers && aiStatus.providers.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+          {aiStatus.providers.map((p: any) => (
+            <div key={p.name} style={{ backgroundColor: 'var(--panel-bg)', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <strong style={{ textTransform: 'capitalize' }}>{p.name.replace('-provider', '')}</strong>
+                <span style={{ 
+                  color: p.health.status === 'HEALTHY' ? 'var(--color-positive)' : 
+                         p.health.status === 'DEGRADED' ? 'var(--color-warning)' : 'var(--color-negative)',
+                  fontWeight: 'bold' 
+                }}>
+                  {p.health.status}
+                </span>
+              </div>
+              <div style={{ color: 'var(--text-secondary)' }}>Role: {p.role}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {isQuotaExhausted && (
         <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--color-negative)', padding: '16px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Ban size={20} color="var(--color-negative)" />

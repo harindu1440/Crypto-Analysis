@@ -8,7 +8,40 @@ const globalMonitoringService_1 = require("../monitoring/globalMonitoringService
 const alertService_1 = require("./alertService");
 const geminiBudgetManager_1 = require("../ai/geminiBudgetManager");
 const opportunityService_1 = require("../opportunities/opportunityService");
+const providerRegistry_1 = require("../ai/providers/providerRegistry");
 exports.SystemHealthService = {
+    async getAIStatus() {
+        const aiBudget = geminiBudgetManager_1.GeminiBudgetManager.getStatus();
+        let isHealthy = false;
+        let message = 'AI is OFFLINE';
+        let status = aiBudget.status;
+        let providers = [];
+        try {
+            providers = providerRegistry_1.ProviderRegistry.getProviderHealths();
+            const healthyProviders = providers.filter(p => p.health.status === 'HEALTHY' || p.health.status === 'DEGRADED');
+            if (healthyProviders.length > 0) {
+                isHealthy = true;
+                status = 'HEALTHY';
+                message = `Multi-Model AI Active (${healthyProviders.length}/${providers.length} providers)`;
+            }
+            if (providerRegistry_1.ProviderRegistry.isGeminiOnly()) {
+                message = 'Legacy Gemini-Only AI Active';
+                status = aiBudget.status;
+                isHealthy = status === 'HEALTHY' || status === 'DEGRADED';
+            }
+        }
+        catch (e) {
+            // Provider Registry not initialized yet
+        }
+        return {
+            status: status,
+            isHealthy,
+            message,
+            providers,
+            dailyRequestsCount: aiBudget.stats ? aiBudget.stats.requestsToday : 0,
+            quotaExhausted: aiBudget.status === 'QUOTA_EXHAUSTED'
+        };
+    },
     async getHealth() {
         const health = {
             overall: 'HEALTHY',
@@ -52,7 +85,7 @@ exports.SystemHealthService = {
             }
         }
         // 5. Phase 15 AI & Opportunity Engine
-        const aiStatus = geminiBudgetManager_1.GeminiBudgetManager.getStatus().status;
+        const aiStatus = (await this.getAIStatus()).status;
         const opps = opportunityService_1.OpportunityService.getOpportunities();
         const opportunityStats = {
             active: opps.filter(o => ['DETECTED', 'ANALYZING', 'VALIDATING', 'QUALIFIED', 'ACTIVE', 'APPROACHING_ENTRY'].includes(o.status)).length,

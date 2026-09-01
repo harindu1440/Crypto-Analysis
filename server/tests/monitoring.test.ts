@@ -1,11 +1,13 @@
 import { MonitoringService } from '../services/monitoring/monitoringService';
 import { AgentRunner } from '../services/ai/agentRunner';
+import { ProviderRegistry } from '../services/ai/providers/providerRegistry';
 import { RiskEngine } from '../services/risk/riskEngine';
 import { ExecutionScheduler } from '../services/execution/executionScheduler';
 import { binanceWS } from '../services/binance/binanceWebSocketService';
 import { AnalysisService } from '../services/analysis/analysisService';
 
 jest.mock('../services/ai/agentRunner');
+jest.mock('../services/ai/providers/providerRegistry');
 jest.mock('../services/risk/riskEngine');
 jest.mock('../services/execution/executionScheduler');
 jest.mock('../services/binance/binanceWebSocketService');
@@ -14,8 +16,11 @@ jest.mock('../services/analysis/analysisService');
 describe('Monitoring Service', () => {
 
   beforeEach(() => {
+    jest.clearAllMocks();
+    (ProviderRegistry.isGeminiOnly as jest.Mock).mockReturnValue(true);
+    
+    // Default setup
     MonitoringService.stop();
-    // clear memory
     const status = MonitoringService.getStatus();
     status.assets.forEach(a => MonitoringService.removeAsset(a.symbol));
     jest.clearAllMocks();
@@ -43,6 +48,8 @@ describe('Monitoring Service', () => {
   });
 
   it('does not run analysis on every tick (cooldown/price delta logic)', async () => {
+    (AgentRunner.runAnalysis as jest.Mock).mockResolvedValue({ decision: 'NO_TRADE', analysisId: 'mock123' });
+    
     MonitoringService.addAsset('ADAUSDT');
     MonitoringService.start();
 
