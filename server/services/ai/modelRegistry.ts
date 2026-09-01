@@ -25,7 +25,23 @@ export type ErrorClass =
   | 'QUOTA_EXHAUSTED'
   | 'RATE_LIMITED'
   | 'TRANSIENT'
-  | 'OFFLINE';
+  | 'OFFLINE'
+  | 'INVALID_REQUEST'
+  | 'AUTHENTICATION_ERROR'
+  | 'MODEL_NOT_FOUND'
+  | 'UNSUPPORTED_MODEL'
+  | 'SCHEMA_ERROR'
+  | 'PROVIDER_ERROR'
+  | 'UNKNOWN';
+
+// ─── Model Capabilities ───────────────────────────────────────────────────────
+export interface ModelCapabilities {
+  structuredOutput: boolean;
+  json: boolean;
+  reasoning: boolean;
+  technicalAnalysis: boolean;
+  riskAnalysis: boolean;
+}
 
 // ─── Model Registry Entry ─────────────────────────────────────────────────────
 export interface ModelRegistryEntry {
@@ -36,6 +52,9 @@ export interface ModelRegistryEntry {
   role: AIRole;
   priority: number;              // lower = higher priority
   status: ModelStatus;
+  capabilities: ModelCapabilities;
+  activeRequests: number;
+  maxConcurrentRequests: number;
   cooldownUntil: number | null;
   quotaResetAt: number | null;
   consecutiveFailures: number;
@@ -175,13 +194,26 @@ class ModelRegistryImpl {
         break;
       }
 
-      case 'OFFLINE': {
+      case 'OFFLINE':
+      case 'AUTHENTICATION_ERROR': {
         model.status = 'OFFLINE';
         model.cooldownUntil = null;
         console.error(`[ModelRegistry] ${model.id} → OFFLINE (not configured or auth failure)`);
         break;
       }
 
+      case 'INVALID_REQUEST':
+      case 'MODEL_NOT_FOUND':
+      case 'UNSUPPORTED_MODEL':
+      case 'SCHEMA_ERROR': {
+        model.status = 'DISABLED';
+        model.cooldownUntil = null;
+        console.error(`[ModelRegistry] ${model.id} → DISABLED (Permanent error: ${errorClass})`);
+        break;
+      }
+
+      case 'PROVIDER_ERROR':
+      case 'UNKNOWN':
       case 'TRANSIENT':
       default: {
         if (model.consecutiveFailures >= 3) {
@@ -215,12 +247,24 @@ class ModelRegistryImpl {
     const reliabilityScore = successRate;
     const priorityScore = 1 - (model.priority - 1) * 0.1; // priority 1 = 1.0, priority 5 = 0.6
     const failurePenalty = Math.max(0, 1 - model.consecutiveFailures * 0.2);
+    
+    // Penalize models that are currently handling their max concurrency
+    // This pushes the router to distribute requests to other capable models first.
+    let loadScore = 1.0;
+    if (model.maxConcurrentRequests > 0) {
+      if (model.activeRequests >= model.maxConcurrentRequests) {
+         loadScore = 0.1; // Heavy penalty but not zero (in case it's the only eligible model left)
+      } else {
+         loadScore = 1 - (model.activeRequests / model.maxConcurrentRequests) * 0.5; // Up to 50% penalty as it fills up
+      }
+    }
 
     return (
-      reliabilityScore * 0.35 +
-      latencyScore * 0.25 +
-      priorityScore * 0.25 +
-      failurePenalty * 0.15
+      reliabilityScore * 0.30 +
+      latencyScore * 0.20 +
+      priorityScore * 0.20 +
+      loadScore * 0.20 +
+      failurePenalty * 0.10
     );
   }
 
@@ -292,7 +336,31 @@ class ModelRegistryImpl {
       msg.includes('401') ||
       msg.includes('403')
     ) {
-      return 'OFFLINE';
+      return 'AUTHENTICATION_ERROR';
+    }
+    
+    // Invalid requests / unsupported models (e.g., Groq 400 Bad Request)
+    if (
+      msg.includes('model not found') ||
+      msg.includes('does not exist') ||
+      msg.includes('invalid model') ||
+      msg.includes('unsupported model')
+    ) {
+      return 'MODEL_NOT_FOUND';
+    }
+    
+    if (
+      msg.includes('invalid parameter') ||
+      msg.includes('invalid request') ||
+      msg.includes('schema') ||
+      msg.includes('400') ||
+      msg.includes('bad request')
+    ) {
+      return 'INVALID_REQUEST';
+    }
+    
+    if (msg.includes('50') || msg.includes('timeout')) {
+      return 'PROVIDER_ERROR';
     }
 
     return 'TRANSIENT';

@@ -35,6 +35,15 @@ function makeEntry(
     role: 'INDEPENDENT MARKET ANALYST',
     priority,
     status,
+    capabilities: {
+      structuredOutput: true,
+      json: true,
+      reasoning: true,
+      technicalAnalysis: true,
+      riskAnalysis: true
+    },
+    activeRequests: 0,
+    maxConcurrentRequests: 1,
     cooldownUntil: null,
     quotaResetAt: null,
     consecutiveFailures: 0,
@@ -227,10 +236,10 @@ describe('Phase 20.2: DynamicModelRouter', () => {
     expect(ModelRegistry.classifyError(new Error('DAILY_QUOTA_EXHAUSTED'))).toBe('QUOTA_EXHAUSTED');
     expect(ModelRegistry.classifyError(new Error('429 too many requests'))).toBe('RATE_LIMITED');
     expect(ModelRegistry.classifyError(new Error('rate limit exceeded'))).toBe('RATE_LIMITED');
-    expect(ModelRegistry.classifyError(new Error('Groq API is OFFLINE'))).toBe('OFFLINE');
-    expect(ModelRegistry.classifyError(new Error('401 Unauthorized'))).toBe('OFFLINE');
-    expect(ModelRegistry.classifyError(new Error('503 Service Unavailable'))).toBe('TRANSIENT');
-    expect(ModelRegistry.classifyError(new Error('timeout'))).toBe('TRANSIENT');
+    expect(ModelRegistry.classifyError(new Error('Groq API is OFFLINE'))).toBe('AUTHENTICATION_ERROR');
+    expect(ModelRegistry.classifyError(new Error('401 Unauthorized'))).toBe('AUTHENTICATION_ERROR');
+    expect(ModelRegistry.classifyError(new Error('503 Service Unavailable'))).toBe('PROVIDER_ERROR');
+    expect(ModelRegistry.classifyError(new Error('timeout'))).toBe('PROVIDER_ERROR');
   });
 
   // ── 10. Disabled model never selected ──────────────────────────────────────
@@ -259,4 +268,68 @@ describe('Phase 20.2: DynamicModelRouter', () => {
     expect(status.eligibleCount).toBe(1);
     expect(status.totalModels).toBe(2);
   });
+
+  // ── 12. Model Load Balancing & Atomic Reservation ────────────────────────────
+  it('prevents same model from being selected when maxConcurrent is reached', () => {
+    const gemini = makeProvider('gemini', async () => ({}));
+    const groq = makeProvider('groq', async () => ({}));
+
+    const geminiEntry = makeEntry('gemini:flash', 'gemini', 1, gemini);
+    geminiEntry.maxConcurrentRequests = 1;
+    
+    const groqEntry = makeEntry('groq:llama', 'groq', 2, groq);
+    groqEntry.maxConcurrentRequests = 1;
+
+    resetRegistry(geminiEntry, groqEntry);
+
+    // First request should reserve Gemini
+    const firstSelected = DynamicModelRouter.selectAndReserveModel([]);
+    expect(firstSelected.id).toBe('gemini:flash');
+    expect(firstSelected.activeRequests).toBe(1);
+
+    // Second request should reserve Groq (since Gemini is at max capacity, its load score penalizes it)
+    const secondSelected = DynamicModelRouter.selectAndReserveModel([]);
+    expect(secondSelected.id).toBe('groq:llama');
+    expect(secondSelected.activeRequests).toBe(1);
+
+    // Release both
+    DynamicModelRouter.releaseModel('gemini:flash');
+    DynamicModelRouter.releaseModel('groq:llama');
+    
+    expect(geminiEntry.activeRequests).toBe(0);
+  });
+
+  // ── 13. Capability Filtering ────────────────────────────────────────────────
+  it('filters models by required capabilities', () => {
+    const groq = makeProvider('groq', async () => ({}));
+    const openRouter = makeProvider('openrouter', async () => ({}));
+
+    const groqEntry = makeEntry('groq:llama', 'groq', 1, groq);
+    groqEntry.capabilities.riskAnalysis = false; // Groq cannot do risk
+    
+    const orEntry = makeEntry('openrouter:mistral', 'openrouter', 2, openRouter);
+    orEntry.capabilities.riskAnalysis = true;
+
+    resetRegistry(groqEntry, orEntry);
+
+    // With no capabilities required, Groq wins due to priority
+    const generalSelected = DynamicModelRouter.selectAndReserveModel([]);
+    expect(generalSelected.id).toBe('groq:llama');
+    DynamicModelRouter.releaseModel('groq:llama');
+
+    // With riskAnalysis required, OpenRouter wins
+    const riskSelected = DynamicModelRouter.selectAndReserveModel([], { riskAnalysis: true });
+    expect(riskSelected.id).toBe('openrouter:mistral');
+    DynamicModelRouter.releaseModel('openrouter:mistral');
+  });
+
+  // ── 14. 400 Bad Request triggers INVALID_REQUEST ────────────────────────────
+  it('HTTP 400 with invalid model is classified as MODEL_NOT_FOUND', () => {
+    const errorCls = ModelRegistry.classifyError(new Error('Groq API Error: 400 Bad Request - model not found'));
+    expect(errorCls).toBe('MODEL_NOT_FOUND');
+    
+    const invalidParam = ModelRegistry.classifyError(new Error('Groq API Error: 400 Bad Request - invalid parameter'));
+    expect(invalidParam).toBe('INVALID_REQUEST');
+  });
 });
+

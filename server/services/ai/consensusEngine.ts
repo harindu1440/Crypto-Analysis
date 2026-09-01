@@ -27,9 +27,25 @@ export class ConsensusEngine {
     let totalWeight = 0;
     
     const candidates = [];
+    const modelUsageCount: Record<string, number> = {};
+    
+    // First pass: count models
+    for (const dec of validDecisions) {
+       const providerId = dec.provider;
+       modelUsageCount[providerId] = (modelUsageCount[providerId] || 0) + 1;
+    }
+    const uniqueModelsCount = Object.keys(modelUsageCount).length;
     
     for (const dec of validDecisions) {
-      const weight = 1 + (dec.confidence / 100); // Base weight 1 + up to 1 for 100% confidence
+      // Base weight from confidence
+      let weight = 1 + (dec.confidence / 100);
+      
+      // Penalize models that dominate the consensus to prevent echo-chamber effect
+      const usageCount = modelUsageCount[dec.provider];
+      if (usageCount > 1) {
+         weight = weight / Math.sqrt(usageCount); // e.g. 4 usages = weight divided by 2
+      }
+      
       totalWeight += weight;
       
       if (dec.decision === 'CANDIDATE_TRADE' && dec.tradeCandidate) {
@@ -51,7 +67,7 @@ export class ConsensusEngine {
     let finalDecision: Decision = 'NO_TRADE';
     let finalCandidate = null;
     let finalConfidence = 0;
-    let reasoning = `Consensus Breakdown - BUY: ${buyPercent.toFixed(1)}%, SELL: ${sellPercent.toFixed(1)}%, WAIT: ${waitPercent.toFixed(1)}% | Models: ${validDecisions.length}`;
+    let reasoning = `Consensus Breakdown - BUY: ${buyPercent.toFixed(1)}%, SELL: ${sellPercent.toFixed(1)}%, WAIT: ${waitPercent.toFixed(1)}% | Models: ${validDecisions.length} (Unique: ${uniqueModelsCount})`;
     
     if (buyPercent >= minConsensusPercent) {
       finalDecision = 'CANDIDATE_TRADE';

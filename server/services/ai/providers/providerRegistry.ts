@@ -35,6 +35,17 @@ export class ProviderRegistry {
 
     this.providers = [];
 
+    const defaultCapabilities = {
+      structuredOutput: true,
+      json: true,
+      reasoning: true,
+      technicalAnalysis: true,
+      riskAnalysis: true
+    };
+    
+    const maxParallelPerModel = parseInt(process.env.AI_MAX_PARALLEL_REQUESTS_PER_MODEL || '1');
+    const geminiMaxConcurrent = parseInt(process.env.AI_GEMINI_MAX_CONCURRENT || '1');
+
     // ── Gemini ─────────────────────────────────────────────────────────────────
     const gemini = new GeminiProvider();
     const geminiPriority = parseInt(process.env.GEMINI_PRIORITY || '1');
@@ -48,6 +59,9 @@ export class ProviderRegistry {
         role: 'INDEPENDENT MARKET ANALYST',
         priority: geminiPriority,
         status: 'AVAILABLE',
+        capabilities: { ...defaultCapabilities },
+        activeRequests: 0,
+        maxConcurrentRequests: geminiMaxConcurrent,
         cooldownUntil: null, quotaResetAt: null,
         consecutiveFailures: 0, totalRequests: 0, successfulRequests: 0,
         failedRequests: 0, totalLatencyMs: 0,
@@ -68,6 +82,9 @@ export class ProviderRegistry {
         role: 'TECHNICAL ANALYST',
         priority: groqPriority,
         status: 'AVAILABLE',
+        capabilities: { ...defaultCapabilities },
+        activeRequests: 0,
+        maxConcurrentRequests: maxParallelPerModel,
         cooldownUntil: null, quotaResetAt: null,
         consecutiveFailures: 0, totalRequests: 0, successfulRequests: 0,
         failedRequests: 0, totalLatencyMs: 0,
@@ -88,6 +105,9 @@ export class ProviderRegistry {
         role: 'MOMENTUM ANALYST',
         priority: hfPriority,
         status: 'AVAILABLE',
+        capabilities: { ...defaultCapabilities },
+        activeRequests: 0,
+        maxConcurrentRequests: maxParallelPerModel,
         cooldownUntil: null, quotaResetAt: null,
         consecutiveFailures: 0, totalRequests: 0, successfulRequests: 0,
         failedRequests: 0, totalLatencyMs: 0,
@@ -114,6 +134,9 @@ export class ProviderRegistry {
           role,
           priority,
           status: 'AVAILABLE',
+          capabilities: { ...defaultCapabilities },
+          activeRequests: 0,
+          maxConcurrentRequests: maxParallelPerModel,
           cooldownUntil: null, quotaResetAt: null,
           consecutiveFailures: 0, totalRequests: 0, successfulRequests: 0,
           failedRequests: 0, totalLatencyMs: 0,

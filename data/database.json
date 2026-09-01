@@ -13,37 +13,40 @@
   "monitoredAssets": [],
   "monitoringEvents": [],
   "opportunities": [],
-  "notifications": [],
+  "notifications": [
+    {
+      "id": "3af66d8a-b624-4a71-a28c-8f0729c2a647",
+      "userId": "0bcc6b28-8d96-4a7d-b4c9-bb8247ab7a31",
+      "opportunityId": "opp2",
+      "type": "NEW_OPPORTUNITY",
+      "priority": "HIGH",
+      "title": "Test",
+      "message": "Test Msg",
+      "link": "/opportunities/opp2",
+      "data": {
+        "symbol": "ETHUSDT",
+        "direction": "LONG"
+      },
+      "createdAt": 1788247028615,
+      "read": false,
+      "dedupKey": "0bcc6b28-8d96-4a7d-b4c9-bb8247ab7a31-opp2-NEW_OPPORTUNITY"
+    }
+  ],
   "users": [
     {
-      "id": "b83bbd32-21ef-4ce9-87eb-bb897efa485a",
-      "email": "u1@example.com",
-      "displayName": "U1",
-      "passwordHash": "cf863d304571beb5c01d92f075550964acbec0ad0a883297d7beae6a4416f02357d10b343c30d5ef344f1a0478651e80022a36ce6f9d17f700dd55cda5774f23",
-      "salt": "4bbbfde295ca6cae4ac810ed35f74ca5",
-      "createdAt": 1788245928086,
-      "updatedAt": 1788245928086,
-      "status": "ACTIVE"
-    },
-    {
-      "id": "c010cd85-a867-446f-a58d-39ddc0a020cd",
-      "email": "u2@example.com",
-      "displayName": "U2",
-      "passwordHash": "8b1d2308856035c558cadc81b41c8443774671c6e7821692e56d1bdf7589f07721e98b8afbd9aaf0ba9f332141875e36ed7d856593ac65daf3eb730c32ae4f3f",
-      "salt": "a91214cadfe2bac398e03b432e4f2248",
-      "createdAt": 1788245928263,
-      "updatedAt": 1788245928263,
+      "id": "0bcc6b28-8d96-4a7d-b4c9-bb8247ab7a31",
+      "email": "u3@test.com",
+      "displayName": "U3",
+      "passwordHash": "2245dec4b33d493d015220f4bcb41a982b77356a966d6805223ef932367a8f0453ceac5b6bdac55dcd0475844f3fdce6070c5f60559b01c47689c6b6c52451e9",
+      "salt": "400de4517ed410a8e309412df9e28089",
+      "createdAt": 1788247028609,
+      "updatedAt": 1788247028609,
       "status": "ACTIVE"
     }
   ],
   "sessions": [],
   "watchlists": {
-    "b83bbd32-21ef-4ce9-87eb-bb897efa485a": [
-      "BTCUSDT"
-    ],
-    "c010cd85-a867-446f-a58d-39ddc0a020cd": [
-      "ETHUSDT"
-    ]
+    "0bcc6b28-8d96-4a7d-b4c9-bb8247ab7a31": []
   },
   "savedOpportunities": [],
   "userPreferences": {},

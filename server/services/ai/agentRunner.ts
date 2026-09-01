@@ -202,19 +202,28 @@ export const AgentRunner = {
         // ── Multi-Model Parallel Pipeline ───────────────────────────────────────
         console.log(`[AgentRunner] Running Multi-Model Parallel Pipeline for ${symbol} (${eligibleModels.length} models)`);
 
-        const modelEntries = ModelRegistry.getEligible();
-        const rolePromptKeys = Object.keys(ROLE_PROMPTS);
+        const rolePromptKeys = Object.keys(ROLE_PROMPTS) as any[];
+        
+        const capabilitiesMap: Record<string, any> = {
+           'TECHNICAL ANALYST': { structuredOutput: true, technicalAnalysis: true },
+           'MOMENTUM ANALYST': { structuredOutput: true, reasoning: true },
+           'PRICE ACTION ANALYST': { structuredOutput: true, reasoning: true, technicalAnalysis: true },
+           'RISK CHALLENGER': { structuredOutput: true, reasoning: true, riskAnalysis: true },
+           'INDEPENDENT MARKET ANALYST': { structuredOutput: true, reasoning: true }
+        };
 
-        const promises = modelEntries.map((entry, idx) => {
-          const role = entry.role;
+        const promises = rolePromptKeys.map((role) => {
           const roleConfig = ROLE_PROMPTS[role];
           if (!roleConfig) return Promise.reject(new Error(`Unknown role: ${role}`));
+          
+          const requiredCapabilities = capabilitiesMap[role] || { structuredOutput: true };
 
           return DynamicModelRouter.executeWithFailover<any>(
             JSON.stringify(data),
             'MasterDecision',
             `${roleConfig.description}\n${roleConfig.instructions}`,
-            `RoleDecision[${role}]:${symbol}`
+            `RoleDecision[${role}]:${symbol}`,
+            requiredCapabilities
           ).then(res => ({ ...res.data, provider: res.modelId, role }));
         });
 
@@ -226,13 +235,13 @@ export const AgentRunner = {
             validDecisions.push(res.value);
             AIPerformanceTracker.trackDecision(res.value);
           } else {
-            console.warn(`[AgentRunner] Model ${modelEntries[i]?.id} failed in Multi-Model pipeline: ${(res as any).reason?.message}`);
+            console.warn(`[AgentRunner] Model ${eligibleModels[i]?.id || 'unknown'} failed in Multi-Model pipeline: ${(res as any).reason?.message}`);
           }
         });
 
         if (validDecisions.length === 0) {
           console.warn(`[AgentRunner] All models failed in parallel pipeline for ${symbol}. Returning AI_UNAVAILABLE.`);
-          return makeUnavailableResult(symbol, modelEntries.map(e => e.id));
+          return makeUnavailableResult(symbol, eligibleModels.map(e => e.id));
         }
 
         finalResult = ConsensusEngine.calculateConsensus(symbol, validDecisions, minModels, minConsensusPercent);

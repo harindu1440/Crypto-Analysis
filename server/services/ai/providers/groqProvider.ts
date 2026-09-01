@@ -43,7 +43,15 @@ export class GroqProvider extends BaseAIProvider {
       });
 
       if (!response.ok) {
-        throw new Error(`Groq API Error: ${response.status} ${response.statusText}`);
+        const errText = await response.text();
+        let sanitized = errText;
+        try {
+           const parsedErr = JSON.parse(errText);
+           if (parsedErr.error && parsedErr.error.message) {
+               sanitized = parsedErr.error.message;
+           }
+        } catch(e) {}
+        throw new Error(`Groq API Error: ${response.status} ${response.statusText} - ${sanitized}`);
       }
 
       const data = await response.json();

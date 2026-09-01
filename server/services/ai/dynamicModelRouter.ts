@@ -10,7 +10,7 @@
  *  6. Only if ALL candidates fail → returns AI_UNAVAILABLE result
  */
 
-import { ModelRegistry, ModelRegistryEntry } from './modelRegistry';
+import { ModelRegistry, ModelRegistryEntry, ModelCapabilities } from './modelRegistry';
 import { EventBus } from '../system/eventBus';
 
 const MAX_FAILOVER_ATTEMPTS = parseInt(process.env.AI_MAX_FAILOVER_ATTEMPTS || '4');
@@ -52,7 +52,8 @@ class DynamicModelRouterImpl {
     prompt: string,
     schemaName: string,
     systemPrompt: string | undefined,
-    taskLabel: string
+    taskLabel: string,
+    requiredCapabilities?: Partial<ModelCapabilities>
   ): Promise<RouterResult<T>> {
     const attempted: string[] = [];
     let failoverCount = 0;
@@ -60,16 +61,17 @@ class DynamicModelRouterImpl {
     console.log(`[AI Router] ${taskLabel}: Selecting model...`);
 
     while (attempted.length < MAX_FAILOVER_ATTEMPTS) {
-      // Get eligible models, excluding already attempted ones
-      const candidates = ModelRegistry.getEligible(attempted);
-
-      if (candidates.length === 0) {
-        this.logPoolStatus(taskLabel, attempted);
-        throw new AIUnavailableError(attempted);
+      let selected: ModelRegistryEntry;
+      try {
+        selected = this.selectAndReserveModel(attempted, requiredCapabilities);
+      } catch (err) {
+        if (err instanceof AIUnavailableError) {
+           this.logPoolStatus(taskLabel, attempted);
+           throw new AIUnavailableError(attempted);
+        }
+        throw err;
       }
-
-      // Score and select the best
-      const selected = this.selectBest(candidates);
+      
       attempted.push(selected.id);
 
       console.log(
@@ -114,18 +116,20 @@ class DynamicModelRouterImpl {
         const errorClass = ModelRegistry.recordFailure(selected.id, err);
 
         console.warn(
-          `[AI Router] ${taskLabel}: FAILED on ${selected.id} ` +
-          `(${errorClass}, ${latencyMs}ms) — ${err.message?.substring(0, 100)}`
+          `[AI Router] ${taskLabel}: FAILED on ${selected.id}\n` +
+          `  Category: ${errorClass} | Latency: ${latencyMs}ms\n` +
+          `  Message: ${err.message?.substring(0, 200)}`
         );
 
         failoverCount++;
 
-        // Publish alert for quota/offline failures
-        if (errorClass === 'QUOTA_EXHAUSTED' || errorClass === 'OFFLINE') {
+        // Publish alert for quota/offline failures (reduced severity)
+        if (errorClass === 'QUOTA_EXHAUSTED' || errorClass === 'OFFLINE' || errorClass === 'AUTHENTICATION_ERROR' || errorClass === 'INVALID_REQUEST') {
           EventBus.publish({
             eventType: 'SYSTEM_ALERT',
             source: 'DynamicModelRouter',
             payload: {
+              level: errorClass === 'QUOTA_EXHAUSTED' ? 'WARNING' : 'ERROR',
               message: `${selected.provider}/${selected.modelName} is ${errorClass}. Trying next model...`,
               failedModel: selected.id,
               errorClass
@@ -135,12 +139,49 @@ class DynamicModelRouterImpl {
 
         console.log(`[AI Router] ${taskLabel}: Selecting replacement model...`);
         // Continue to next iteration to pick next best model
+      } finally {
+        this.releaseModel(selected.id);
       }
     }
 
     // All attempts exhausted
     this.logPoolStatus(taskLabel, attempted);
     throw new AIUnavailableError(attempted);
+  }
+
+  /**
+   * Atomically select and reserve a model, incrementing its active requests count.
+   */
+  public selectAndReserveModel(excludeIds: string[], requiredCapabilities?: Partial<ModelCapabilities>): ModelRegistryEntry {
+    const candidates = ModelRegistry.getEligible(excludeIds).filter(model => {
+       if (!requiredCapabilities) return true;
+       // Check if model satisfies all required capabilities
+       for (const [key, value] of Object.entries(requiredCapabilities)) {
+          if (value && !(model.capabilities as any)[key]) return false;
+       }
+       return true;
+    });
+
+    if (candidates.length === 0) {
+      throw new AIUnavailableError(excludeIds);
+    }
+
+    const selected = candidates.reduce((best, current) => {
+      return ModelRegistry.score(current) > ModelRegistry.score(best) ? current : best;
+    });
+
+    selected.activeRequests++;
+    return selected;
+  }
+
+  /**
+   * Release a previously reserved model.
+   */
+  public releaseModel(id: string): void {
+     const model = ModelRegistry.get(id);
+     if (model && model.activeRequests > 0) {
+        model.activeRequests--;
+     }
   }
 
   /**
