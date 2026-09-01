@@ -1,8 +1,9 @@
 /**
- * ModelRegistry — Phase 20.2
- * 
- * Tracks health, quota, latency and reliability for every individual AI model
- * (not just providers). Each OpenRouter model is a separate entry.
+ * ModelRegistry — Phase 20.4
+ *
+ * Per-model health tracking, quota management, adaptive latency scoring,
+ * and deterministic error classification. Each OpenRouter model is a separate
+ * entry so provider-level health never masks model-level issues.
  */
 
 import { AIProvider } from './providers/provider.interface';
@@ -10,25 +11,27 @@ import { AIRole } from './providers/providerRegistry';
 
 // ─── Model Status ─────────────────────────────────────────────────────────────
 export type ModelStatus =
-  | 'CONFIGURED'
-  | 'AVAILABLE'
-  | 'ACTIVE'
-  | 'RATE_LIMITED'
-  | 'QUOTA_EXHAUSTED'
-  | 'COOLDOWN'
-  | 'SLOW'
+  | 'CONFIGURED'      // registered, not yet validated
+  | 'AVAILABLE'       // healthy, ready
+  | 'ACTIVE'          // reserved, handling request
+  | 'DEGRADED'        // had failures/timeouts — eligible but penalised
+  | 'PROBING'         // half-open: cooldown expired, next call is a health probe
+  | 'RATE_LIMITED'    // 429 temp, recovers after retryDelay
+  | 'QUOTA_EXHAUSTED' // daily quota, excluded until recheck
+  | 'COOLDOWN'        // temporarily unavailable, auto-recovers
+  | 'SLOW'            // legacy — maps to DEGRADED behaviour
   | 'FAILED'
-  | 'DISABLED'
-  | 'OFFLINE'
+  | 'DISABLED'        // permanent — decommissioned, 404, auth fail
+  | 'OFFLINE'         // not configured / no credentials
   | 'UNKNOWN';
 
 // ─── Error Classification ─────────────────────────────────────────────────────
 export type ErrorClass =
   | 'QUOTA_EXHAUSTED'
   | 'RATE_LIMITED'
-  | 'TRANSIENT'
   | 'TIMEOUT'
   | 'NETWORK_ERROR'
+  | 'INVALID_RESPONSE'  // non-JSON / safety message / malformed provider output
   | 'OFFLINE'
   | 'INVALID_REQUEST'
   | 'AUTHENTICATION_ERROR'
@@ -36,6 +39,7 @@ export type ErrorClass =
   | 'UNSUPPORTED_MODEL'
   | 'SCHEMA_ERROR'
   | 'PROVIDER_ERROR'
+  | 'TRANSIENT'
   | 'UNKNOWN';
 
 // ─── Model Capabilities ───────────────────────────────────────────────────────
@@ -59,10 +63,13 @@ export interface ModelRegistryEntry {
   capabilities: ModelCapabilities;
   activeRequests: number;
   maxConcurrentRequests: number;
+  timeoutMs: number;             // per-model request timeout
   cooldownUntil: number | null;
   quotaResetAt: number | null;
   consecutiveFailures: number;
-  timeoutCount: number;
+  consecutiveTimeouts: number;   // for exponential timeout backoff
+  timeoutCount: number;          // lifetime count
+  invalidResponseCount: number;  // malformed / non-JSON responses
   totalRequests: number;
   successfulRequests: number;
   failedRequests: number;
@@ -71,12 +78,15 @@ export interface ModelRegistryEntry {
   lastUsedAt: number | null;
   lastFailureAt: number | null;
   lastSuccessAt: number | null;
+  lastTimeoutAt: number | null;
 }
 
 // ─── Cooldown Defaults ────────────────────────────────────────────────────────
-const RATE_LIMIT_COOLDOWN_MS = parseInt(process.env.AI_RATE_LIMIT_COOLDOWN_MS || '30000');
-const QUOTA_RECHECK_MS = parseInt(process.env.AI_QUOTA_RECHECK_MS || '900000');   // 15 min recheck
-const HEALTH_RECHECK_MS = parseInt(process.env.AI_MODEL_HEALTH_RECHECK_MS || '60000');
+const RATE_LIMIT_COOLDOWN_MS   = parseInt(process.env.AI_RATE_LIMIT_COOLDOWN_MS   || '30000');
+const QUOTA_RECHECK_MS         = parseInt(process.env.AI_QUOTA_RECHECK_MS         || '900000'); // 15 min
+const HEALTH_RECHECK_MS        = parseInt(process.env.AI_MODEL_HEALTH_RECHECK_MS  || '60000');
+const TIMEOUT_COOLDOWN_BASE_MS = parseInt(process.env.AI_TIMEOUT_COOLDOWN_BASE_MS || '30000');
+const TIMEOUT_COOLDOWN_MAX_MS  = parseInt(process.env.AI_TIMEOUT_COOLDOWN_MAX_MS  || '300000');
 
 class ModelRegistryImpl {
   private models: Map<string, ModelRegistryEntry> = new Map();
@@ -103,8 +113,9 @@ class ModelRegistryImpl {
   }
 
   /**
-   * Get all models that are currently eligible (AVAILABLE or past cooldown).
-   * Automatically transitions models out of cooldown.
+   * Get all models currently eligible.
+   * DEGRADED and PROBING are included (penalised in score).
+   * Auto-transitions COOLDOWN/RATE_LIMITED → PROBING when window expires.
    */
   public getEligible(excludeIds: string[] = []): ModelRegistryEntry[] {
     const now = Date.now();
@@ -112,34 +123,52 @@ class ModelRegistryImpl {
 
     for (const model of this.models.values()) {
       if (excludeIds.includes(model.id)) continue;
-      if (model.status === 'DISABLED' || model.status === 'OFFLINE') continue;
 
-      // Auto-recover from cooldown/rate-limit
+      // Hard exclusions
       if (
-        (model.status === 'COOLDOWN' || model.status === 'RATE_LIMITED') &&
+        model.status === 'DISABLED' ||
+        model.status === 'OFFLINE'  ||
+        model.status === 'FAILED'
+      ) continue;
+
+      // Auto-recover cooldown/rate-limit/DEGRADED → PROBING (half-open)
+      if (
+        (model.status === 'COOLDOWN' || model.status === 'RATE_LIMITED' || model.status === 'DEGRADED') &&
         model.cooldownUntil &&
         now >= model.cooldownUntil
       ) {
-        model.status = 'AVAILABLE';
+        model.status = 'PROBING';
         model.cooldownUntil = null;
-        model.consecutiveFailures = 0;
-        console.log(`[ModelRegistry] ${model.id} recovered from cooldown → AVAILABLE`);
+        console.log(`[ModelRegistry] ${model.id} cooldown expired → PROBING (half-open)`);
       }
 
-      // Recheck quota-exhausted models on a schedule
+      // Quota recheck
       if (model.status === 'QUOTA_EXHAUSTED') {
         const recheckAt = model.quotaResetAt || (model.lastFailureAt! + QUOTA_RECHECK_MS);
         if (now >= recheckAt) {
-          model.status = 'AVAILABLE';
+          model.status = 'PROBING';
           model.quotaResetAt = null;
           model.consecutiveFailures = 0;
-          console.log(`[ModelRegistry] ${model.id} quota recheck window reached → AVAILABLE (half-open)`);
+          console.log(`[ModelRegistry] ${model.id} quota recheck → PROBING (half-open)`);
         } else {
-          continue; // still exhausted
+          continue;
         }
       }
 
-      if (model.status === 'AVAILABLE' || model.status === 'ACTIVE' || model.status === 'SLOW' || model.status === 'CONFIGURED') {
+      // Skip still-cooling models
+      if (
+        (model.status === 'COOLDOWN' || model.status === 'RATE_LIMITED') &&
+        model.cooldownUntil && now < model.cooldownUntil
+      ) continue;
+
+      if (
+        model.status === 'AVAILABLE'  ||
+        model.status === 'ACTIVE'     ||
+        model.status === 'CONFIGURED' ||
+        model.status === 'DEGRADED'   ||
+        model.status === 'PROBING'    ||
+        model.status === 'SLOW'
+      ) {
         eligible.push(model);
       }
     }
@@ -147,32 +176,39 @@ class ModelRegistryImpl {
     return eligible;
   }
 
-  /**
-   * Record a successful request.
-   */
+  /** Record a successful request. Resets all failure/timeout counters. */
   public recordSuccess(id: string, latencyMs: number): void {
     const model = this.models.get(id);
     if (!model) return;
+
+    const wasProbing = model.status === 'PROBING';
 
     model.status = 'AVAILABLE';
     model.totalRequests++;
     model.successfulRequests++;
     model.totalLatencyMs += latencyMs;
-    // Rolling average: 80% history, 20% new
-    model.averageLatencyMs = model.averageLatencyMs === 0 ? latencyMs : (model.averageLatencyMs * 0.8) + (latencyMs * 0.2);
-    
-    // Gradual timeout recovery
-    if (model.timeoutCount > 0) model.timeoutCount = Math.max(0, model.timeoutCount - 1);
-    
-    model.lastSuccessAt = Date.now();
-    model.lastUsedAt = Date.now();
+    // EMA: 80% history, 20% new observation
+    model.averageLatencyMs =
+      model.averageLatencyMs === 0
+        ? latencyMs
+        : (model.averageLatencyMs * 0.8) + (latencyMs * 0.2);
+
+    // Reset all consecutive failure counters on success
     model.consecutiveFailures = 0;
+    model.consecutiveTimeouts = 0;
+    if (model.timeoutCount > 0)         model.timeoutCount         = Math.max(0, model.timeoutCount - 1);
+    if (model.invalidResponseCount > 0) model.invalidResponseCount = Math.max(0, model.invalidResponseCount - 1);
+
+    model.lastSuccessAt = Date.now();
+    model.lastUsedAt    = Date.now();
     model.cooldownUntil = null;
+
+    if (wasProbing) console.log(`[ModelRegistry] ${model.id} probe SUCCESS → AVAILABLE`);
   }
 
   /**
-   * Record a failure and classify it.
-   * Returns the classified error type.
+   * Record a failure. Classifies error, applies correct state transition.
+   * Returns the classified error type for router logging.
    */
   public recordFailure(id: string, error: any): ErrorClass {
     const model = this.models.get(id);
@@ -183,21 +219,40 @@ class ModelRegistryImpl {
     model.failedRequests++;
     model.consecutiveFailures++;
     model.lastFailureAt = now;
-    model.lastUsedAt = now;
+    model.lastUsedAt    = now;
 
     const errorClass = this.classifyError(error);
 
     switch (errorClass) {
+
+      // ── Permanent / long-term ─────────────────────────────────────────
       case 'QUOTA_EXHAUSTED': {
         model.status = 'QUOTA_EXHAUSTED';
         model.cooldownUntil = null;
-        // Try to extract retryDelay or use default 15-minute recheck
         const quotaReset = this.extractQuotaReset(error);
         model.quotaResetAt = quotaReset || (now + QUOTA_RECHECK_MS);
         console.warn(`[ModelRegistry] ${model.id} → QUOTA_EXHAUSTED. Recheck at ${new Date(model.quotaResetAt).toISOString()}`);
         break;
       }
 
+      case 'OFFLINE':
+      case 'AUTHENTICATION_ERROR': {
+        model.status = 'DISABLED';
+        model.cooldownUntil = null;
+        console.error(`[ModelRegistry] ${model.id} → DISABLED (AUTH/OFFLINE: ${errorClass})`);
+        break;
+      }
+
+      case 'MODEL_NOT_FOUND':
+      case 'UNSUPPORTED_MODEL':
+      case 'INVALID_REQUEST': {
+        model.status = 'DISABLED';
+        model.cooldownUntil = null;
+        console.error(`[ModelRegistry] ${model.id} → DISABLED (Permanent: ${errorClass})`);
+        break;
+      }
+
+      // ── Temporary ───────────────────────────────────────────────────
       case 'RATE_LIMITED': {
         model.status = 'RATE_LIMITED';
         const retryDelay = this.extractRetryDelay(error) || RATE_LIMIT_COOLDOWN_MS;
@@ -206,56 +261,58 @@ class ModelRegistryImpl {
         break;
       }
 
-      case 'OFFLINE':
-      case 'AUTHENTICATION_ERROR': {
-        model.status = 'OFFLINE';
-        model.cooldownUntil = null;
-        console.error(`[ModelRegistry] ${model.id} → OFFLINE (not configured or auth failure)`);
-        break;
-      }
-
-      case 'INVALID_REQUEST':
-      case 'MODEL_NOT_FOUND':
-      case 'UNSUPPORTED_MODEL':
-      case 'SCHEMA_ERROR': {
-        model.status = 'DISABLED';
-        model.cooldownUntil = null;
-        console.error(`[ModelRegistry] ${model.id} → DISABLED (Permanent error: ${errorClass})`);
-        break;
-      }
-
       case 'NETWORK_ERROR': {
         model.status = 'COOLDOWN';
-        model.cooldownUntil = now + (HEALTH_RECHECK_MS / 2); // Shorter cooldown for network
-        console.warn(`[ModelRegistry] ${model.id} → NETWORK_ERROR. Cooldown until ${new Date(model.cooldownUntil).toISOString()}`);
+        model.cooldownUntil = now + Math.floor(HEALTH_RECHECK_MS / 2);
+        console.warn(`[ModelRegistry] ${model.id} → NETWORK_ERROR. Cooldown ${Math.floor(HEALTH_RECHECK_MS / 2)}ms`);
         break;
       }
 
       case 'TIMEOUT': {
+        model.consecutiveTimeouts++;
         model.timeoutCount++;
-        // Apply rolling penalty to latency explicitly just in case
-        model.averageLatencyMs = (model.averageLatencyMs * 0.5) + (15000 * 0.5); 
-        
-        if (model.timeoutCount > 2) {
-           model.status = 'SLOW';
-        } else if (model.timeoutCount > 5) {
-           model.status = 'COOLDOWN';
-           model.cooldownUntil = now + (HEALTH_RECHECK_MS);
+        model.lastTimeoutAt = now;
+        // Exponential backoff: base * 2^(n-1), capped at max
+        const backoffMs = Math.min(
+          TIMEOUT_COOLDOWN_BASE_MS * Math.pow(2, model.consecutiveTimeouts - 1),
+          TIMEOUT_COOLDOWN_MAX_MS
+        );
+        model.status = 'DEGRADED';
+        model.cooldownUntil = now + backoffMs;
+        // Penalise latency score
+        const timeoutCostMs = model.timeoutMs || 15000;
+        model.averageLatencyMs =
+          model.averageLatencyMs === 0
+            ? timeoutCostMs
+            : (model.averageLatencyMs * 0.6) + (timeoutCostMs * 0.4);
+        console.warn(
+          `[ModelRegistry] ${model.id} → DEGRADED/TIMEOUT ` +
+          `(consecutive: ${model.consecutiveTimeouts}, backoff: ${backoffMs}ms)`
+        );
+        break;
+      }
+
+      case 'INVALID_RESPONSE':
+      case 'SCHEMA_ERROR': {
+        model.invalidResponseCount++;
+        if (model.invalidResponseCount >= 2) {
+          model.status = 'DEGRADED';
+          model.cooldownUntil = now + HEALTH_RECHECK_MS;
+          console.warn(`[ModelRegistry] ${model.id} → DEGRADED (repeated INVALID_RESPONSE: ${model.invalidResponseCount})`);
+        } else {
+          console.warn(`[ModelRegistry] ${model.id} → INVALID_RESPONSE #${model.invalidResponseCount} (still eligible for retry)`);
         }
-        console.warn(`[ModelRegistry] ${model.id} → TIMEOUT (${model.timeoutCount} times). Status: ${model.status}`);
         break;
       }
 
       case 'PROVIDER_ERROR':
-      case 'UNKNOWN':
       case 'TRANSIENT':
+      case 'UNKNOWN':
       default: {
         if (model.consecutiveFailures >= 3) {
           model.status = 'COOLDOWN';
           model.cooldownUntil = now + HEALTH_RECHECK_MS;
           console.warn(`[ModelRegistry] ${model.id} → COOLDOWN after ${model.consecutiveFailures} failures`);
-        } else if (model.status !== 'SLOW' && model.status !== 'CONFIGURED') {
-          model.status = 'AVAILABLE'; // still eligible, just degraded
         }
         break;
       }
@@ -265,59 +322,49 @@ class ModelRegistryImpl {
   }
 
   /**
-   * Calculate selection score for a model.
-   * Higher = better candidate.
+   * Score a model for selection. Higher = better.
+   * DEGRADED / PROBING models get a 60% score haircut — last resort only.
    */
   public score(model: ModelRegistryEntry): number {
-    const successRate = model.totalRequests > 0
-      ? model.successfulRequests / model.totalRequests
-      : 1.0; // no history = optimistic
+    const successRate =
+      model.totalRequests > 0 ? model.successfulRequests / model.totalRequests : 1.0;
 
-    const avgLatency = model.averageLatencyMs > 0 ? model.averageLatencyMs : 3000;
+    const avgLatency  = model.averageLatencyMs > 0 ? model.averageLatencyMs : 3000;
+    const latencyScore      = Math.max(0, 1 - avgLatency / 30000);
+    const reliabilityScore  = successRate;
+    const priorityScore     = Math.max(0, 1 - (model.priority - 1) * 0.1);
+    const failurePenalty    = Math.max(0, 1 - model.consecutiveFailures * 0.2);
+    const timeoutPenalty    = Math.max(0, 1 - model.consecutiveTimeouts  * 0.25);
+    const invalidRespPenalty= Math.max(0, 1 - model.invalidResponseCount  * 0.2);
 
-    const latencyScore = Math.max(0, 1 - (avgLatency / 30000)); // normalize against 30s max
-    const reliabilityScore = successRate;
-    const priorityScore = 1 - (model.priority - 1) * 0.1; // priority 1 = 1.0, priority 5 = 0.6
-    const failurePenalty = Math.max(0, 1 - model.consecutiveFailures * 0.2);
-    const timeoutPenalty = Math.max(0, 1 - model.timeoutCount * 0.15);
-    
-    // Penalize models that are currently handling their max concurrency
-    // This pushes the router to distribute requests to other capable models first.
     let loadScore = 1.0;
     if (model.maxConcurrentRequests > 0) {
       if (model.activeRequests >= model.maxConcurrentRequests) {
-         loadScore = 0.1; // Heavy penalty but not zero (in case it's the only eligible model left)
+        loadScore = 0.05; // near-zero — at capacity
       } else {
-         loadScore = 1 - (model.activeRequests / model.maxConcurrentRequests) * 0.5; // Up to 50% penalty as it fills up
+        loadScore = 1 - (model.activeRequests / model.maxConcurrentRequests) * 0.5;
       }
     }
 
-    return (
-      reliabilityScore * 0.25 +
-      latencyScore * 0.20 +
-      priorityScore * 0.20 +
-      loadScore * 0.15 +
-      failurePenalty * 0.10 +
-      timeoutPenalty * 0.10
-    );
+    let base =
+      reliabilityScore   * 0.25 +
+      latencyScore       * 0.20 +
+      priorityScore      * 0.20 +
+      loadScore          * 0.15 +
+      failurePenalty     * 0.10 +
+      timeoutPenalty     * 0.05 +
+      invalidRespPenalty * 0.05;
+
+    // Heavy score haircut for degraded/probing — prefer healthy alternatives
+    if (model.status === 'DEGRADED' || model.status === 'PROBING' || model.status === 'SLOW') {
+      base *= 0.4;
+    }
+
+    return base;
   }
 
-  /**
-   * Get full status snapshot for monitoring/UI.
-   */
-  public getStatus(): Array<{
-    id: string;
-    provider: string;
-    modelName: string;
-    role: string;
-    status: ModelStatus;
-    successRate: string;
-    avgLatencyMs: number;
-    cooldownUntil: number | null;
-    quotaResetAt: number | null;
-    consecutiveFailures: number;
-    totalRequests: number;
-  }> {
+  /** Full status snapshot for monitoring/UI. */
+  public getStatus() {
     return Array.from(this.models.values()).map(m => ({
       id: m.id,
       provider: m.provider,
@@ -327,87 +374,93 @@ class ModelRegistryImpl {
       successRate: m.totalRequests > 0
         ? `${((m.successfulRequests / m.totalRequests) * 100).toFixed(1)}%`
         : 'N/A',
-      avgLatencyMs: m.successfulRequests > 0
-        ? Math.round(m.totalLatencyMs / m.successfulRequests)
-        : 0,
+      avgLatencyMs: m.averageLatencyMs > 0 ? Math.round(m.averageLatencyMs) : 0,
       cooldownUntil: m.cooldownUntil,
       quotaResetAt: m.quotaResetAt,
       consecutiveFailures: m.consecutiveFailures,
+      consecutiveTimeouts: m.consecutiveTimeouts,
+      invalidResponseCount: m.invalidResponseCount,
       totalRequests: m.totalRequests,
     }));
   }
 
-  // ─── Error Parsing ────────────────────────────────────────────────────────
+  // ─── Error Classification ────────────────────────────────────────────────────
 
   public classifyError(error: any): ErrorClass {
+    // Priority 1: named error classes thrown by providers
+    const name = (error?.name || '');
+    if (name === 'TimeoutError')          return 'TIMEOUT';
+    if (name === 'InvalidResponseError')  return 'INVALID_RESPONSE';
+    if (name === 'NetworkError')          return 'NETWORK_ERROR';
+
+    // Priority 2: HTTP status codes (most precise signal)
+    const status = error?.statusCode || error?.status || 0;
+    if (status === 401 || status === 403) return 'AUTHENTICATION_ERROR';
+    if (status === 404)                   return 'MODEL_NOT_FOUND';
+    if (status === 429) {
+      const msg = (error?.message || '').toLowerCase();
+      if (
+        msg.includes('daily') || msg.includes('quota') ||
+        msg.includes('generaterequestsperdayperproject') ||
+        msg.includes('free_tier') || msg.includes('exhausted')
+      ) return 'QUOTA_EXHAUSTED';
+      return 'RATE_LIMITED';
+    }
+    if (status >= 500) return 'PROVIDER_ERROR';
+
+    // Priority 3: message-based fallback
     const msg = (error?.message || '').toLowerCase();
 
-    // Daily quota — MUST check before generic 429
     if (
       msg.includes('daily_quota_exhausted') ||
       msg.includes('generaterequestsperdayperproject') ||
       msg.includes('free_tier') ||
       (msg.includes('quota') && (msg.includes('day') || msg.includes('exhausted')))
-    ) {
-      return 'QUOTA_EXHAUSTED';
-    }
+    ) return 'QUOTA_EXHAUSTED';
 
-    // Temporary rate limit
     if (
-      msg.includes('rate_limited') ||
-      msg.includes('rate limit') ||
-      msg.includes('too many requests') ||
-      msg.includes('429')
-    ) {
-      return 'RATE_LIMITED';
-    }
+      msg.includes('rate_limited') || msg.includes('rate limit') ||
+      msg.includes('too many requests') || msg.includes('429')
+    ) return 'RATE_LIMITED';
 
-    // Offline / auth
     if (
-      msg.includes('offline') ||
-      msg.includes('not configured') ||
-      msg.includes('unauthorized') ||
-      msg.includes('401') ||
-      msg.includes('403')
-    ) {
-      return 'AUTHENTICATION_ERROR';
-    }
-    
-    // Invalid requests / unsupported models (e.g., Groq 400 Bad Request)
+      msg.includes('offline') || msg.includes('not configured') ||
+      msg.includes('unauthorized') || msg.includes('401') || msg.includes('403')
+    ) return 'AUTHENTICATION_ERROR';
+
     if (
-      msg.includes('model not found') ||
-      msg.includes('does not exist') ||
-      msg.includes('invalid model') ||
-      msg.includes('unsupported model') ||
-      msg.includes('decommissioned')
-    ) {
-      return 'MODEL_NOT_FOUND';
-    }
-    
+      msg.includes('model not found') || msg.includes('does not exist') ||
+      msg.includes('invalid model')   || msg.includes('unsupported model') ||
+      msg.includes('decommissioned')  || msg.includes('404')
+    ) return 'MODEL_NOT_FOUND';
+
     if (
-      msg.includes('invalid parameter') ||
-      msg.includes('invalid request') ||
-      msg.includes('schema') ||
-      msg.includes('400') ||
+      msg.includes('invalid parameter') || msg.includes('invalid request') ||
       msg.includes('bad request')
-    ) {
-      return 'INVALID_REQUEST';
+    ) return 'INVALID_REQUEST';
+
+    if (
+      msg.includes('fetch failed')  || msg.includes('network error') ||
+      msg.includes('econnrefused')  || msg.includes('econnreset') ||
+      msg.includes('socket hang up')
+    ) return 'NETWORK_ERROR';
+
+    if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('abort')) {
+      return 'TIMEOUT';
     }
-    
-    if (msg.includes('fetch failed') || msg.includes('network error') || msg.includes('econnrefused')) {
-      return 'NETWORK_ERROR';
-    }
-    
-    if (msg.includes('timeout') || msg.includes('abort')) {
-       return 'TIMEOUT';
-    }
-    
-    if (msg.includes('50') || msg.includes('service unavailable')) {
-      return 'PROVIDER_ERROR';
-    }
+
+    if (
+      msg.includes('invalid_response') || msg.includes('invalid response') ||
+      msg.includes('non-json') || msg.includes('user safety') ||
+      msg.includes('safety message') || msg.includes('unexpected token') ||
+      msg.includes('not valid json') || msg.includes('schema')
+    ) return 'INVALID_RESPONSE';
+
+    if (msg.includes('service unavailable') || /\b5[0-9]{2}\b/.test(msg)) return 'PROVIDER_ERROR';
 
     return 'TRANSIENT';
   }
+
 
   private extractRetryDelay(error: any): number | null {
     const msg = error?.message || '';

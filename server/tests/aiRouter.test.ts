@@ -44,10 +44,13 @@ function makeEntry(
     },
     activeRequests: 0,
     maxConcurrentRequests: 1,
+    timeoutMs: 15000,
     cooldownUntil: null,
     quotaResetAt: null,
     consecutiveFailures: 0,
+    consecutiveTimeouts: 0,
     timeoutCount: 0,
+    invalidResponseCount: 0,
     totalRequests: 0,
     successfulRequests: 0,
     failedRequests: 0,
@@ -56,6 +59,7 @@ function makeEntry(
     lastUsedAt: null,
     lastFailureAt: null,
     lastSuccessAt: null,
+    lastTimeoutAt: null,
   };
 }
 
@@ -189,7 +193,7 @@ describe('Phase 20.2: DynamicModelRouter', () => {
     const eligible = ModelRegistry.getEligible();
     expect(eligible.length).toBe(1);
     expect(eligible[0].id).toBe('groq:llama');
-    expect(eligible[0].status).toBe('AVAILABLE'); // auto-recovered
+    expect(eligible[0].status).toBe('PROBING'); // cooldown expired → PROBING (half-open) by design
   });
 
   // ── 7. Best Model Selection: highest scoring wins ──────────────────────────
@@ -364,10 +368,10 @@ describe('Phase 20.2: DynamicModelRouter', () => {
     expect(entry.timeoutCount).toBe(1);
     expect(entry.averageLatencyMs).toBeGreaterThan(0);
     
-    // Hit timeout multiple times to degrade to SLOW
+    // Hit timeout multiple times to degrade to DEGRADED (Phase 20.4 replaces SLOW with DEGRADED)
     ModelRegistry.recordFailure('or:free', new Error('request timeout after 15000ms'));
     ModelRegistry.recordFailure('or:free', new Error('request timeout after 15000ms'));
-    expect(entry.status).toBe('SLOW');
+    expect(entry.status).toBe('DEGRADED');
   });
 
   // ── 17. Fallback Diversification & Concentration ──────────────────────────────
@@ -407,5 +411,163 @@ describe('Phase 20.2: DynamicModelRouter', () => {
     
     // Release them
     ids.forEach(id => DynamicModelRouter.releaseModel(id, context.analysisRequestId));
+  });
+
+  // ── 18. Gemini timeout → DEGRADED with exponential backoff ─────────────────
+  it('Timeout → DEGRADED with exponential backoff (30s, 60s, 120s)', () => {
+    const provider = makeProvider('gemini', async () => ({}));
+    const entry = makeEntry('gemini:flash', 'gemini', 1, provider);
+    entry.timeoutMs = 20000;
+    resetRegistry(entry);
+
+    // 1st timeout: backoff = 30000 * 2^0 = 30000ms
+    ModelRegistry.recordFailure('gemini:flash', new Error('gemini:flash timed out after 20000ms'));
+    expect(entry.status).toBe('DEGRADED');
+    expect(entry.consecutiveTimeouts).toBe(1);
+    expect(entry.cooldownUntil).toBeGreaterThan(Date.now() + 25000);
+    expect(entry.cooldownUntil).toBeLessThanOrEqual(Date.now() + 35000);
+
+    // Reset for 2nd timeout
+    entry.status = 'AVAILABLE'; entry.cooldownUntil = null;
+
+    // 2nd timeout: backoff = 30000 * 2^1 = 60000ms
+    ModelRegistry.recordFailure('gemini:flash', new Error('timed out after 20000ms'));
+    expect(entry.consecutiveTimeouts).toBe(2);
+    expect(entry.cooldownUntil).toBeGreaterThan(Date.now() + 55000);
+
+    // 3rd timeout: backoff = 30000 * 2^2 = 120000ms
+    entry.status = 'AVAILABLE'; entry.cooldownUntil = null;
+    ModelRegistry.recordFailure('gemini:flash', new Error('timed out'));
+    expect(entry.consecutiveTimeouts).toBe(3);
+    expect(entry.cooldownUntil).toBeGreaterThan(Date.now() + 100000);
+  });
+
+  // ── 19. Timeout is NOT confused with quota exhaustion ──────────────────────
+  it('TIMEOUT classification never sets QUOTA_EXHAUSTED', () => {
+    const provider = makeProvider('gemini', async () => ({}));
+    const entry = makeEntry('gemini:flash', 'gemini', 1, provider);
+    resetRegistry(entry);
+
+    ModelRegistry.recordFailure('gemini:flash', new Error('timed out after 20000ms'));
+    expect(entry.status).toBe('DEGRADED');
+    expect(entry.status).not.toBe('QUOTA_EXHAUSTED');
+    expect(entry.quotaResetAt).toBeNull();
+  });
+
+  // ── 20. consecutiveTimeouts resets on success ──────────────────────────────
+  it('consecutiveTimeouts resets to 0 after a successful request', () => {
+    const provider = makeProvider('or', async () => ({}));
+    const entry = makeEntry('or:free', 'openrouter', 3, provider);
+    resetRegistry(entry);
+
+    ModelRegistry.recordFailure('or:free', new Error('timed out'));
+    ModelRegistry.recordFailure('or:free', new Error('timed out'));
+    expect(entry.consecutiveTimeouts).toBe(2);
+
+    ModelRegistry.recordSuccess('or:free', 1500);
+    expect(entry.consecutiveTimeouts).toBe(0);
+    expect(entry.status).toBe('AVAILABLE');
+  });
+
+  // ── 21. INVALID_RESPONSE classification ────────────────────────────────────
+  it('User Safety: safe response is classified as INVALID_RESPONSE', () => {
+    const cls = ModelRegistry.classifyError(new Error('OpenRouter returned a safety/non-JSON response. Preview: "User Safety: safe". Model: openrouter/free'));
+    expect(cls).toBe('INVALID_RESPONSE');
+  });
+
+  it('INVALID_RESPONSE first occurrence: model stays eligible', () => {
+    const provider = makeProvider('or', async () => ({}));
+    const entry = makeEntry('or:free', 'openrouter', 3, provider);
+    resetRegistry(entry);
+
+    ModelRegistry.recordFailure('or:free', new Error('OpenRouter returned invalid JSON. Preview: "User Safety: safe"'));
+    expect(entry.invalidResponseCount).toBe(1);
+    expect(entry.status).not.toBe('DISABLED');
+    expect(entry.status).not.toBe('DEGRADED');
+
+    // Second occurrence → DEGRADED
+    ModelRegistry.recordFailure('or:free', new Error('invalid response: non-json'));
+    expect(entry.invalidResponseCount).toBe(2);
+    expect(entry.status).toBe('DEGRADED');
+  });
+
+  // ── 22. PROBING recovery ───────────────────────────────────────────────────
+  it('DEGRADED model transitions to PROBING when cooldown expires', () => {
+    const provider = makeProvider('or', async () => ({ ok: true }));
+    const entry = makeEntry('or:free', 'openrouter', 3, provider, 'DEGRADED');
+    entry.cooldownUntil = Date.now() - 1000; // expired
+    resetRegistry(entry);
+
+    const eligible = ModelRegistry.getEligible();
+    expect(eligible.length).toBe(1);
+    expect(eligible[0].status).toBe('PROBING');
+  });
+
+  it('PROBING model → successful request → AVAILABLE', () => {
+    const provider = makeProvider('or', async () => ({}));
+    const entry = makeEntry('or:free', 'openrouter', 3, provider, 'PROBING');
+    resetRegistry(entry);
+
+    ModelRegistry.recordSuccess('or:free', 800);
+    expect(entry.status).toBe('AVAILABLE');
+    expect(entry.consecutiveTimeouts).toBe(0);
+  });
+
+  // ── 23. DEGRADED / PROBING score haircut ──────────────────────────────────
+  it('DEGRADED model scores much lower than AVAILABLE model', () => {
+    const p1 = makeProvider('g', async () => ({}));
+    const p2 = makeProvider('or', async () => ({}));
+
+    const gemini  = makeEntry('gemini:flash', 'gemini', 1, p1, 'AVAILABLE');
+    const orModel = makeEntry('or:free', 'openrouter', 2, p2, 'DEGRADED');
+    resetRegistry(gemini, orModel);
+
+    expect(ModelRegistry.score(gemini)).toBeGreaterThan(ModelRegistry.score(orModel) * 2);
+  });
+
+  // ── 24. OpenRouter 404 → MODEL_NOT_FOUND → DISABLED ──────────────────────
+  it('HTTP 404 is classified as MODEL_NOT_FOUND and model is DISABLED', () => {
+    const err = new Error('OpenRouter API Error: 404 Not Found - model does not exist');
+    (err as any).statusCode = 404;
+    
+    const cls = ModelRegistry.classifyError(err);
+    expect(cls).toBe('MODEL_NOT_FOUND');
+
+    const provider = makeProvider('or', async () => ({}));
+    const entry = makeEntry('or:model-a', 'openrouter', 3, provider);
+    resetRegistry(entry);
+
+    ModelRegistry.recordFailure('or:model-a', err);
+    expect(entry.status).toBe('DISABLED');
+
+    // Should not appear in eligible pool
+    const eligible = ModelRegistry.getEligible();
+    expect(eligible.find(m => m.id === 'or:model-a')).toBeUndefined();
+  });
+
+  // ── 25. All 4 real-world failures → AI_UNAVAILABLE ────────────────────────
+  it('Gemini=TIMEOUT, Groq=DISABLED, OR=INVALID_RESPONSE, HF=NETWORK → AI_UNAVAILABLE', async () => {
+    let attempt = 0;
+    const makeFailer = (err: Error) => makeProvider('x', async () => { throw err; });
+
+    const geminiErr = new Error('gemini:flash timed out after 20000ms');
+    const orErr = new Error('OpenRouter returned invalid JSON. Preview: "User Safety: safe"');
+    const hfErr = Object.assign(new Error('fetch failed: connect ECONNREFUSED'), { name: 'NetworkError' });
+
+    resetRegistry(
+      makeEntry('gemini:flash',  'gemini',      1, makeFailer(geminiErr)),
+      makeEntry('groq:llama',    'groq',         2, makeProvider('x', async () => ({ ok: true })), 'DISABLED'),
+      makeEntry('or:free',       'openrouter',   3, makeFailer(orErr)),
+      makeEntry('hf:llama',      'huggingface',  4, makeFailer(hfErr)),
+    );
+
+    await expect(
+      DynamicModelRouter.executeWithFailover('prompt', 'ScreeningAnalysis', undefined, 'Test:AllFail')
+    ).rejects.toThrow(AIUnavailableError);
+
+    // Groq was DISABLED from start — never attempted
+    // Gemini → DEGRADED, OR → INVALID_RESPONSE, HF → COOLDOWN
+    expect(ModelRegistry.get('gemini:flash')?.status).toBe('DEGRADED');
+    expect(ModelRegistry.get('groq:llama')?.status).toBe('DISABLED');
   });
 });

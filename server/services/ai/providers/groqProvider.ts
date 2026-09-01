@@ -1,5 +1,10 @@
 import { BaseAIProvider } from './baseProvider';
 
+class InvalidResponseError extends Error {
+  public readonly name = 'InvalidResponseError';
+  constructor(message: string) { super(message); }
+}
+
 export class GroqProvider extends BaseAIProvider {
   name = 'groq-provider';
   private apiKey: string;
@@ -27,8 +32,9 @@ export class GroqProvider extends BaseAIProvider {
     }
     messages.push({ role: 'user', content: prompt });
 
+    let response: Response;
     try {
-      const response = await fetch(this.apiUrl, {
+      response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
@@ -41,8 +47,14 @@ export class GroqProvider extends BaseAIProvider {
           response_format: { type: 'json_object' }
         })
       });
+    } catch (networkErr: any) {
+      this.recordFailure(networkErr);
+      const e = new Error(`fetch failed: ${networkErr.message}`);
+      (e as any).name = 'NetworkError';
+      throw e;
+    }
 
-      if (!response.ok) {
+    if (!response.ok) {
         const errText = await response.text();
         let sanitized = errText;
         try {
@@ -51,7 +63,10 @@ export class GroqProvider extends BaseAIProvider {
                sanitized = parsedErr.error.message;
            }
         } catch(e) {}
-        throw new Error(`Groq API Error: ${response.status} ${response.statusText} - ${sanitized}`);
+        const err = new Error(`Groq API Error: ${response.status} ${response.statusText} - ${sanitized}`);
+        (err as any).statusCode = response.status;
+        this.recordFailure(err);
+        throw err;
       }
 
       const data = await response.json();
@@ -61,10 +76,27 @@ export class GroqProvider extends BaseAIProvider {
       if (text.startsWith('```json')) text = text.replace(/^```json/, '');
       if (text.startsWith('```')) text = text.replace(/^```/, '');
       if (text.endsWith('```')) text = text.replace(/```$/, '');
+      text = text.trim();
       
-      const parsed = JSON.parse(text);
+      let parsed: T;
+      try {
+        parsed = JSON.parse(text) as T;
+      } catch {
+        // Attempt brace extraction
+        const first = text.indexOf('{'); const last = text.lastIndexOf('}');
+        if (first !== -1 && last > first) {
+          try { parsed = JSON.parse(text.substring(first, last + 1)) as T; }
+          catch {
+            const preview = text.substring(0, 100).replace(/\n/g, ' ');
+            throw new InvalidResponseError(`Groq returned invalid JSON. Preview: "${preview}"`);
+          }
+        } else {
+          const preview = text.substring(0, 100).replace(/\n/g, ' ');
+          throw new InvalidResponseError(`Groq returned non-JSON response. Preview: "${preview}"`);
+        }
+      }
       this.recordSuccess();
-      return parsed as T;
+      return parsed;
     } catch (err: any) {
       this.recordFailure(err);
       throw err;

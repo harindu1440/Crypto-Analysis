@@ -13,8 +13,8 @@
 import { ModelRegistry, ModelRegistryEntry, ModelCapabilities } from './modelRegistry';
 import { EventBus } from '../system/eventBus';
 
-const MAX_FAILOVER_ATTEMPTS = parseInt(process.env.AI_MAX_FAILOVER_ATTEMPTS || '4');
-const PROVIDER_TIMEOUT_MS = parseInt(process.env.AI_PROVIDER_TIMEOUT_MS || '15000');
+const MAX_FAILOVER_ATTEMPTS  = parseInt(process.env.AI_MAX_FAILOVER_ATTEMPTS  || '4');
+const DEFAULT_TIMEOUT_MS     = parseInt(process.env.AI_PROVIDER_TIMEOUT_MS     || '15000');
 
 // ─── Router Result ────────────────────────────────────────────────────────────
 export interface RouterResult<T> {
@@ -98,35 +98,39 @@ class DynamicModelRouterImpl {
         (failoverCount > 0 ? ` (failover attempt ${failoverCount})` : '')
       );
 
-      // Execute with timeout
       const startMs = Date.now();
+      // Use per-model timeout, fall back to global default
+      const timeoutMs = selected.timeoutMs || DEFAULT_TIMEOUT_MS;
       try {
         const result = await this.withTimeout(
           selected.providerInstance.generateObject<T>(prompt, schemaName, systemPrompt),
-          PROVIDER_TIMEOUT_MS,
-          `${selected.id} timed out after ${PROVIDER_TIMEOUT_MS}ms`
+          timeoutMs,
+          `${selected.id} timed out after ${timeoutMs}ms`
         );
 
-        const latencyMs = Date.now() - startMs;
+      const latencyMs = Date.now() - startMs;
         ModelRegistry.recordSuccess(selected.id, latencyMs);
 
-        console.log(
-          `[AI Router] ${taskLabel}: SUCCESS ` +
-          `| Provider: ${selected.provider} | Model: ${selected.modelName} | Latency: ${latencyMs}ms`
-        );
-
         if (failoverCount > 0) {
+          // INFO level for successful failover — not critical
           EventBus.publish({
             eventType: 'SYSTEM_ALERT',
             source: 'DynamicModelRouter',
             payload: {
-              message: `AI failover succeeded. Active model: ${selected.provider}/${selected.modelName}`,
+              level: 'INFO',
+              message: `[AI Router] Failover succeeded. Active: ${selected.provider}/${selected.modelName}`,
               activeModel: selected.id,
               failoverCount,
               attempted
             }
           });
         }
+
+        console.log(
+          `[AI Router] ${taskLabel}: SUCCESS` +
+          ` | Provider: ${selected.provider} | Model: ${selected.modelName}` +
+          ` | Attempt: ${failoverCount + 1} | Latency: ${latencyMs}ms`
+        );
 
         return { data: result, modelId: selected.id, provider: selected.provider, modelName: selected.modelName, latencyMs, failoverCount };
 
@@ -135,27 +139,36 @@ class DynamicModelRouterImpl {
         const errorClass = ModelRegistry.recordFailure(selected.id, err);
 
         console.warn(
-          `[AI Router] ${taskLabel}: FAILED on ${selected.id}\n` +
-          `  Category: ${errorClass} | Latency: ${latencyMs}ms\n` +
-          `  Message: ${err.message?.substring(0, 200)}`
+          `[AI Router] ${taskLabel}: FAILED\n` +
+          `  Role: ${taskLabel} | Attempt: ${failoverCount + 1}` +
+          ` | Provider: ${selected.provider} | Model: ${selected.modelName}\n` +
+          `  Result: ${errorClass} | Latency: ${latencyMs}ms\n` +
+          `  Message: ${err.message?.substring(0, 150)}`
         );
 
-        failoverCount++;
+        // EventBus alerts — use appropriate severity
+        const alertLevel =
+          errorClass === 'QUOTA_EXHAUSTED'      ? 'WARNING' :
+          errorClass === 'TIMEOUT'              ? 'WARNING' :
+          errorClass === 'AUTHENTICATION_ERROR' ? 'ERROR'   :
+          errorClass === 'MODEL_NOT_FOUND'      ? 'ERROR'   :
+          errorClass === 'INVALID_RESPONSE'     ? 'WARNING' :
+          errorClass === 'NETWORK_ERROR'        ? 'WARNING' : 'INFO';
 
-        // Publish alert for quota/offline failures (reduced severity)
-        if (errorClass === 'QUOTA_EXHAUSTED' || errorClass === 'OFFLINE' || errorClass === 'AUTHENTICATION_ERROR' || errorClass === 'INVALID_REQUEST') {
+        if (alertLevel !== 'INFO') {
           EventBus.publish({
             eventType: 'SYSTEM_ALERT',
             source: 'DynamicModelRouter',
             payload: {
-              level: errorClass === 'QUOTA_EXHAUSTED' ? 'WARNING' : 'ERROR',
-              message: `${selected.provider}/${selected.modelName} is ${errorClass}. Trying next model...`,
+              level: alertLevel,
+              message: `${selected.provider}/${selected.modelName} → ${errorClass}. Trying next model.`,
               failedModel: selected.id,
               errorClass
             }
           });
         }
 
+        failoverCount++;
         console.log(`[AI Router] ${taskLabel}: Selecting replacement model...`);
         // Continue to next iteration to pick next best model
       } finally {
@@ -165,6 +178,16 @@ class DynamicModelRouterImpl {
 
     // All attempts exhausted
     this.logPoolStatus(taskLabel, attempted);
+    // CRITICAL: emit only when no eligible AI exists at all
+    EventBus.publish({
+      eventType: 'SYSTEM_ALERT',
+      source: 'DynamicModelRouter',
+      payload: {
+        level: 'CRITICAL',
+        message: `AI_UNAVAILABLE: All ${attempted.length} eligible models exhausted for ${taskLabel}. No analysis possible.`,
+        attempted
+      }
+    });
     throw new AIUnavailableError(attempted);
   }
 
@@ -287,18 +310,28 @@ class DynamicModelRouterImpl {
     };
   }
 
-  /**
-   * Log all model pool statuses for debugging.
-   */
+  /** Log pool status separating eligible from disabled. */
   private logPoolStatus(taskLabel: string, attempted: string[]): void {
     const all = ModelRegistry.getAll();
-    const lines = all.map(m =>
-      `  ${m.id} = ${m.status}${m.cooldownUntil ? ` (cooldown until ${new Date(m.cooldownUntil).toISOString()})` : ''}`
+    const eligible = all.filter(m =>
+      !['DISABLED', 'OFFLINE', 'FAILED', 'QUOTA_EXHAUSTED'].includes(m.status)
     );
+    const disabled = all.filter(m =>
+      ['DISABLED', 'OFFLINE', 'FAILED'].includes(m.status)
+    );
+    const quotaExhausted = all.filter(m => m.status === 'QUOTA_EXHAUSTED');
+
+    const eligibleLines  = eligible.map(m =>
+      `  ELIGIBLE  ${m.id} = ${m.status}${m.cooldownUntil ? ` (until ${new Date(m.cooldownUntil).toISOString()})` : ''}`
+    );
+    const disabledLines  = disabled.map(m  => `  DISABLED  ${m.id}`);
+    const exhaustedLines = quotaExhausted.map(m => `  QUOTA_EXH ${m.id} (recheck: ${m.quotaResetAt ? new Date(m.quotaResetAt).toISOString() : 'N/A'})`);
+
     console.warn(
       `[AI Router] ${taskLabel}: ALL MODELS EXHAUSTED after ${attempted.length} attempt(s).\n` +
       `Attempted: ${attempted.join(', ')}\n` +
-      `Pool:\n${lines.join('\n')}`
+      `Registered: ${all.length} | Eligible: ${eligible.length} | Disabled: ${disabled.length}\n` +
+      [...eligibleLines, ...exhaustedLines, ...disabledLines].join('\n')
     );
   }
 

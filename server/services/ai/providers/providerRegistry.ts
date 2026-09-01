@@ -36,15 +36,16 @@ export class ProviderRegistry {
     this.providers = [];
 
     const defaultCapabilities = {
-      structuredOutput: true,
-      json: true,
-      reasoning: true,
-      technicalAnalysis: true,
-      riskAnalysis: true
+      structuredOutput: true, json: true, reasoning: true,
+      technicalAnalysis: true, riskAnalysis: true
     };
-    
-    const maxParallelPerModel = parseInt(process.env.AI_MAX_PARALLEL_REQUESTS_PER_MODEL || '1');
-    const geminiMaxConcurrent = parseInt(process.env.AI_GEMINI_MAX_CONCURRENT || '1');
+    const maxParallelPerModel  = parseInt(process.env.AI_MAX_PARALLEL_REQUESTS_PER_MODEL || '1');
+    const geminiMaxConcurrent  = parseInt(process.env.AI_GEMINI_MAX_CONCURRENT           || '1');
+    const geminiTimeoutMs      = parseInt(process.env.AI_GEMINI_TIMEOUT_MS               || '20000');
+    const groqTimeoutMs        = parseInt(process.env.AI_GROQ_TIMEOUT_MS                 || '10000');
+    const orTimeoutMs          = parseInt(process.env.AI_OPENROUTER_TIMEOUT_MS           || '20000');
+    const hfTimeoutMs          = parseInt(process.env.AI_HUGGINGFACE_TIMEOUT_MS          || '20000');
+    const defaultTimeoutMs     = parseInt(process.env.AI_PROVIDER_TIMEOUT_MS             || '15000');
 
     // ── Gemini ─────────────────────────────────────────────────────────────────
     const gemini = new GeminiProvider();
@@ -53,19 +54,18 @@ export class ProviderRegistry {
       this.providers.push({ provider: gemini, role: 'INDEPENDENT MARKET ANALYST', priority: geminiPriority });
       this.registerModel({
         id: `gemini:${process.env.GEMINI_MODEL || 'gemini-3.6-flash'}`,
-        provider: 'gemini',
-        modelName: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
-        providerInstance: gemini,
-        role: 'INDEPENDENT MARKET ANALYST',
-        priority: geminiPriority,
-        status: 'CONFIGURED',
+        provider: 'gemini', modelName: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
+        providerInstance: gemini, role: 'INDEPENDENT MARKET ANALYST',
+        priority: geminiPriority, status: 'CONFIGURED',
         capabilities: { ...defaultCapabilities },
-        activeRequests: 0,
-        maxConcurrentRequests: geminiMaxConcurrent,
+        activeRequests: 0, maxConcurrentRequests: geminiMaxConcurrent,
+        timeoutMs: geminiTimeoutMs,
         cooldownUntil: null, quotaResetAt: null,
-        consecutiveFailures: 0, timeoutCount: 0, totalRequests: 0, successfulRequests: 0,
-        failedRequests: 0, totalLatencyMs: 0, averageLatencyMs: 0,
-        lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null,
+        consecutiveFailures: 0, consecutiveTimeouts: 0, timeoutCount: 0,
+        invalidResponseCount: 0,
+        totalRequests: 0, successfulRequests: 0, failedRequests: 0,
+        totalLatencyMs: 0, averageLatencyMs: 0,
+        lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null, lastTimeoutAt: null,
       });
     }
 
@@ -83,19 +83,18 @@ export class ProviderRegistry {
       this.providers.push({ provider: groq, role: 'TECHNICAL ANALYST', priority: groqPriority });
       this.registerModel({
         id: `groq:${groqModel}`,
-        provider: 'groq',
-        modelName: groqModel,
-        providerInstance: groq,
-        role: 'TECHNICAL ANALYST',
-        priority: groqPriority,
-        status: groqStatus,
+        provider: 'groq', modelName: groqModel,
+        providerInstance: groq, role: 'TECHNICAL ANALYST',
+        priority: groqPriority, status: groqStatus,
         capabilities: { ...defaultCapabilities },
-        activeRequests: 0,
-        maxConcurrentRequests: maxParallelPerModel,
+        activeRequests: 0, maxConcurrentRequests: maxParallelPerModel,
+        timeoutMs: groqTimeoutMs,
         cooldownUntil: null, quotaResetAt: null,
-        consecutiveFailures: 0, timeoutCount: 0, totalRequests: 0, successfulRequests: 0,
-        failedRequests: 0, totalLatencyMs: 0, averageLatencyMs: 0,
-        lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null,
+        consecutiveFailures: 0, consecutiveTimeouts: 0, timeoutCount: 0,
+        invalidResponseCount: 0,
+        totalRequests: 0, successfulRequests: 0, failedRequests: 0,
+        totalLatencyMs: 0, averageLatencyMs: 0,
+        lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null, lastTimeoutAt: null,
       });
     }
 
@@ -106,19 +105,18 @@ export class ProviderRegistry {
       this.providers.push({ provider: hf, role: 'MOMENTUM ANALYST', priority: hfPriority });
       this.registerModel({
         id: `huggingface:${process.env.HF_MODEL || 'meta-llama/Meta-Llama-3-8B-Instruct'}`,
-        provider: 'huggingface',
-        modelName: process.env.HF_MODEL || 'meta-llama/Meta-Llama-3-8B-Instruct',
-        providerInstance: hf,
-        role: 'MOMENTUM ANALYST',
-        priority: hfPriority,
-        status: 'CONFIGURED',
+        provider: 'huggingface', modelName: process.env.HF_MODEL || 'meta-llama/Meta-Llama-3-8B-Instruct',
+        providerInstance: hf, role: 'MOMENTUM ANALYST',
+        priority: hfPriority, status: 'CONFIGURED',
         capabilities: { ...defaultCapabilities },
-        activeRequests: 0,
-        maxConcurrentRequests: maxParallelPerModel,
+        activeRequests: 0, maxConcurrentRequests: maxParallelPerModel,
+        timeoutMs: hfTimeoutMs,
         cooldownUntil: null, quotaResetAt: null,
-        consecutiveFailures: 0, timeoutCount: 0, totalRequests: 0, successfulRequests: 0,
-        failedRequests: 0, totalLatencyMs: 0, averageLatencyMs: 0,
-        lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null,
+        consecutiveFailures: 0, consecutiveTimeouts: 0, timeoutCount: 0,
+        invalidResponseCount: 0,
+        totalRequests: 0, successfulRequests: 0, failedRequests: 0,
+        totalLatencyMs: 0, averageLatencyMs: 0,
+        lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null, lastTimeoutAt: null,
       });
     }
 
@@ -135,27 +133,33 @@ export class ProviderRegistry {
         this.providers.push({ provider, role, priority });
         this.registerModel({
           id: `openrouter:${modelId}`,
-          provider: 'openrouter',
-          modelName: modelId,
-          providerInstance: provider,
-          role,
-          priority,
-          status: 'CONFIGURED',
+          provider: 'openrouter', modelName: modelId,
+          providerInstance: provider, role, priority, status: 'CONFIGURED',
           capabilities: { ...defaultCapabilities },
-          activeRequests: 0,
-          maxConcurrentRequests: maxParallelPerModel,
+          activeRequests: 0, maxConcurrentRequests: maxParallelPerModel,
+          timeoutMs: orTimeoutMs,
           cooldownUntil: null, quotaResetAt: null,
-          consecutiveFailures: 0, timeoutCount: 0, totalRequests: 0, successfulRequests: 0,
-          failedRequests: 0, totalLatencyMs: 0, averageLatencyMs: 0,
-          lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null,
+          consecutiveFailures: 0, consecutiveTimeouts: 0, timeoutCount: 0,
+          invalidResponseCount: 0,
+          totalRequests: 0, successfulRequests: 0, failedRequests: 0,
+          totalLatencyMs: 0, averageLatencyMs: 0,
+          lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null, lastTimeoutAt: null,
         });
       }
     });
 
     this.initialized = true;
-    const count = ModelRegistry.getAll().length;
-    console.log(`[ProviderRegistry] Initialized ${this.providers.length} providers / ${count} models in registry.`);
-    console.log(`[ProviderRegistry] Models: ${ModelRegistry.getAll().map(m => `${m.id}(${m.status})`).join(', ')}`);
+    const all      = ModelRegistry.getAll();
+    const eligible = ModelRegistry.getEligible();
+    const disabled = all.filter(m => m.status === 'DISABLED');
+    console.log(
+      `[ProviderRegistry] Initialized | Registered: ${all.length} models | ` +
+      `Eligible: ${eligible.length} | Disabled: ${disabled.length}`
+    );
+    if (disabled.length > 0) {
+      console.warn(`[ProviderRegistry] Disabled at startup: ${disabled.map(m => m.id).join(', ')}`);
+    }
+    console.log(`[ProviderRegistry] Eligible: ${eligible.map(m => `${m.id}(${m.status})`).join(', ')}`);
   }
 
   private static registerModel(entry: ModelRegistryEntry): void {

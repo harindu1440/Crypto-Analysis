@@ -1,5 +1,18 @@
 import { BaseAIProvider } from './baseProvider';
 
+/**
+ * Structured error thrown when the provider returns a non-JSON / safety response.
+ * The `name` field is checked first in ModelRegistry.classifyError().
+ */
+class InvalidResponseError extends Error {
+  public readonly name = 'InvalidResponseError';
+  public readonly statusCode?: number;
+  constructor(message: string, statusCode?: number) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
 export class OpenRouterProvider extends BaseAIProvider {
   name = 'openrouter-provider';
   private apiKey: string;
@@ -9,13 +22,8 @@ export class OpenRouterProvider extends BaseAIProvider {
   constructor(modelSuffix?: string) {
     super();
     this.apiKey = process.env.OPENROUTER_API_KEY || '';
-    
-    // Support multiple models by instantiating this provider multiple times
-    // Format: OPENROUTER_MODELS="modelA,modelB"
     const configuredModels = (process.env.OPENROUTER_MODELS || 'openrouter/free').split(',').map(s => s.trim());
     this.model = modelSuffix || configuredModels[0];
-    
-    // Override name so each instance has a unique identity in circuit breakers
     this.name = `openrouter-${this.model.replace(/\//g, '-')}`;
   }
 
@@ -30,17 +38,21 @@ export class OpenRouterProvider extends BaseAIProvider {
 
     const messages = [];
     if (systemPrompt) {
-      messages.push({ role: 'system', content: systemPrompt + '\n\nIMPORTANT: You must return ONLY valid raw JSON matching the required schema. Do NOT wrap it in markdown block quotes like ```json.' });
+      messages.push({
+        role: 'system',
+        content: systemPrompt + '\n\nIMPORTANT: You must return ONLY valid raw JSON matching the required schema. Do NOT wrap it in markdown block quotes like ```json. Your response must begin with { and end with }.'
+      });
     }
     messages.push({ role: 'user', content: prompt });
 
+    let response: Response;
     try {
-      const response = await fetch(this.apiUrl, {
+      response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://crypto-analysis-platform.local', // Required by OR
+          'HTTP-Referer': 'https://crypto-analysis-platform.local',
           'X-Title': 'Crypto Analysis Platform'
         },
         body: JSON.stringify({
@@ -50,24 +62,94 @@ export class OpenRouterProvider extends BaseAIProvider {
           response_format: { type: 'json_object' }
         })
       });
+    } catch (networkErr: any) {
+      // fetch() itself threw — network-level failure
+      this.recordFailure(networkErr);
+      const e = new Error(`fetch failed: ${networkErr.message}`);
+      (e as any).name = 'NetworkError';
+      throw e;
+    }
 
-      if (!response.ok) {
-        throw new Error(`OpenRouter API Error: ${response.status} ${response.statusText}`);
-      }
+    if (!response.ok) {
+      let errBody = '';
+      try { errBody = await response.text(); } catch {}
+      let errMsg = errBody;
+      try {
+        const parsed = JSON.parse(errBody);
+        if (parsed?.error?.message) errMsg = parsed.error.message;
+      } catch {}
 
-      const data = await response.json();
-      let text = data.choices[0].message.content.trim();
-      
-      if (text.startsWith('```json')) text = text.replace(/^```json\n?/, '');
-      if (text.startsWith('```')) text = text.replace(/^```\n?/, '');
-      if (text.endsWith('```')) text = text.replace(/\n?```$/, '');
-      
-      const parsed = JSON.parse(text);
-      this.recordSuccess();
-      return parsed as T;
-    } catch (err: any) {
+      const err = new Error(`OpenRouter API Error: ${response.status} ${response.statusText} - ${errMsg.substring(0, 200)}`);
+      (err as any).statusCode = response.status;
       this.recordFailure(err);
       throw err;
     }
+
+    let rawText = '';
+    try {
+      const data = await response.json();
+      rawText = (data?.choices?.[0]?.message?.content || '').trim();
+    } catch (parseErr: any) {
+      const e = new InvalidResponseError(
+        `OpenRouter returned unparseable response body: ${parseErr.message}`
+      );
+      this.recordFailure(e);
+      throw e;
+    }
+
+    // Attempt to extract valid JSON from the raw response
+    const parsed = this.extractJson<T>(rawText);
+
+    this.recordSuccess();
+    return parsed;
+  }
+
+  /**
+   * Robust JSON extractor.
+   * 1. Strip markdown fences.
+   * 2. Detect known non-JSON safety messages — reject immediately.
+   * 3. Find first `{` … last `}` range.
+   * 4. Parse and return.
+   * 5. If no valid JSON found → throw InvalidResponseError.
+   */
+  private extractJson<T>(raw: string): T {
+    // Check for obvious non-JSON safety / moderation messages
+    const lowerRaw = raw.toLowerCase();
+    const safetyPhrases = [
+      'user safety', 'safety:', 'i cannot', 'i am unable', 'content policy',
+      'i apologize', 'as an ai', 'i\'m sorry, i can\'t'
+    ];
+    if (safetyPhrases.some(p => lowerRaw.startsWith(p.toLowerCase()) || lowerRaw.includes(`: ${p.toLowerCase()}`))) {
+      const preview = raw.substring(0, 120).replace(/\n/g, ' ');
+      throw new InvalidResponseError(
+        `OpenRouter returned a safety/non-JSON response. Preview: "${preview}". Model: ${this.model}`
+      );
+    }
+
+    // Strip markdown fences
+    let text = raw;
+    if (text.startsWith('```json')) text = text.replace(/^```json\n?/, '');
+    else if (text.startsWith('```'))  text = text.replace(/^```\n?/, '');
+    if (text.endsWith('```')) text = text.replace(/\n?```$/, '');
+    text = text.trim();
+
+    // Try direct parse first
+    try {
+      return JSON.parse(text) as T;
+    } catch {}
+
+    // Attempt brace-range extraction
+    const first = text.indexOf('{');
+    const last  = text.lastIndexOf('}');
+    if (first !== -1 && last > first) {
+      try {
+        return JSON.parse(text.substring(first, last + 1)) as T;
+      } catch {}
+    }
+
+    const preview = raw.substring(0, 120).replace(/\n/g, ' ');
+    throw new InvalidResponseError(
+      `OpenRouter returned invalid JSON. Preview: "${preview}". Model: ${this.model}`
+    );
   }
 }
