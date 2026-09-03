@@ -1,6 +1,6 @@
 export type AgentStatus = 'UNAVAILABLE' | 'COMPLETE' | 'ANALYZING' | 'ERROR';
-export type AnalysisStatus = 'TRADE_READY' | 'NO_TRADE' | 'ANALYSIS_FAILED' | 'AI_UNAVAILABLE' | 'QUOTA_EXHAUSTED' | 'INVALID_ANALYSIS' | 'INSUFFICIENT_DATA';
-export type Decision = 'BUY' | 'SELL' | 'NO_TRADE' | 'WATCH' | 'CANDIDATE_TRADE';
+export type AnalysisStatus = 'TRADE_READY' | 'NO_TRADE' | 'ANALYSIS_FAILED' | 'AI_UNAVAILABLE' | 'QUOTA_EXHAUSTED' | 'INVALID_ANALYSIS' | 'INSUFFICIENT_DATA' | 'WAIT';
+export type Decision = 'BUY' | 'SELL' | 'NO_TRADE' | 'WATCH' | 'CANDIDATE_TRADE' | 'WAIT';
 
 export type TradeSide = 'LONG' | 'SHORT';
 

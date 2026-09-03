@@ -74,28 +74,27 @@ export class ProviderRegistry {
     const groqPriority = parseInt(process.env.GROQ_PRIORITY || '2');
     if (groq.isConfigured()) {
       let groqStatus: ModelStatus = 'CONFIGURED';
-      const groqModel = process.env.GROQ_MODEL || 'llama3-70b-8192';
+      const groqModel = process.env.GROQ_MODEL || 'llama-3.1-70b-versatile';
       if (groqModel === 'llama3-70b-8192') {
-         console.warn(`[ProviderRegistry] WARNING: Groq model ${groqModel} is invalid/decommissioned.`);
-         groqStatus = 'DISABLED';
+         console.warn(`[ProviderRegistry] ERROR: Groq model ${groqModel} is decommissioned. Skipping registration.`);
+      } else {
+         this.providers.push({ provider: groq, role: 'TECHNICAL ANALYST', priority: groqPriority });
+         this.registerModel({
+           id: `groq:${groqModel}`,
+           provider: 'groq', modelName: groqModel,
+           providerInstance: groq, role: 'TECHNICAL ANALYST',
+           priority: groqPriority, status: groqStatus,
+           capabilities: { ...defaultCapabilities },
+           activeRequests: 0, maxConcurrentRequests: maxParallelPerModel,
+           timeoutMs: groqTimeoutMs,
+           cooldownUntil: null, quotaResetAt: null,
+           consecutiveFailures: 0, consecutiveTimeouts: 0, timeoutCount: 0,
+           invalidResponseCount: 0,
+           totalRequests: 0, successfulRequests: 0, failedRequests: 0,
+           totalLatencyMs: 0, averageLatencyMs: 0,
+           lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null, lastTimeoutAt: null,
+         });
       }
-
-      this.providers.push({ provider: groq, role: 'TECHNICAL ANALYST', priority: groqPriority });
-      this.registerModel({
-        id: `groq:${groqModel}`,
-        provider: 'groq', modelName: groqModel,
-        providerInstance: groq, role: 'TECHNICAL ANALYST',
-        priority: groqPriority, status: groqStatus,
-        capabilities: { ...defaultCapabilities },
-        activeRequests: 0, maxConcurrentRequests: maxParallelPerModel,
-        timeoutMs: groqTimeoutMs,
-        cooldownUntil: null, quotaResetAt: null,
-        consecutiveFailures: 0, consecutiveTimeouts: 0, timeoutCount: 0,
-        invalidResponseCount: 0,
-        totalRequests: 0, successfulRequests: 0, failedRequests: 0,
-        totalLatencyMs: 0, averageLatencyMs: 0,
-        lastUsedAt: null, lastFailureAt: null, lastSuccessAt: null, lastTimeoutAt: null,
-      });
     }
 
     // ── HuggingFace ────────────────────────────────────────────────────────────
@@ -131,10 +130,16 @@ export class ProviderRegistry {
         const role = orRoles[idx] || 'PRICE ACTION ANALYST';
         const priority = orPriorityBase + idx;
         this.providers.push({ provider, role, priority });
+        let status: ModelStatus = 'CONFIGURED';
+        if (modelId === 'mistralai/mistral-7b-instruct:free') {
+           status = 'DISABLED';
+           console.warn(`[ProviderRegistry] Permanently disabled model: ${modelId} (Returns MODEL_NOT_FOUND)`);
+        }
+        
         this.registerModel({
           id: `openrouter:${modelId}`,
           provider: 'openrouter', modelName: modelId,
-          providerInstance: provider, role, priority, status: 'CONFIGURED',
+          providerInstance: provider, role, priority, status,
           capabilities: { ...defaultCapabilities },
           activeRequests: 0, maxConcurrentRequests: maxParallelPerModel,
           timeoutMs: orTimeoutMs,

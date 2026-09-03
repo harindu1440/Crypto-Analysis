@@ -1,4 +1,4 @@
-import { TechnicalAnalysisSnapshot, TradeSetup } from './types';
+import { TechnicalAnalysisSnapshot, TradeSetup, TradePlan, TimeframeAnalysis } from './types';
 import { MasterDecisionOutput } from '../ai/schemas/types';
 
 export const TradeDecisionEngine = {
@@ -91,6 +91,64 @@ export const TradeDecisionEngine = {
       status: deterministicStatus,
       score,
       reasoning
+    };
+  },
+
+  calculateTradePlan(primaryTf: TimeframeAnalysis, setup: TradeSetup): TradePlan | null {
+    if (!setup || setup.type === 'NO_SETUP' || !setup.isValid) return null;
+
+    const currentPrice = primaryTf.indicators.sma?.[20] || 0; // fallback to a known value if price not directly on TimeframeAnalysis
+    // Wait, TimeframeAnalysis has no current price directly on it. Let's use the closest support/resistance or assume entry is current price.
+    // Actually, snapshot has market.price. Let's adjust signature to take currentPrice, or extract from swing points.
+    // The closest swing point is the most recent.
+    let entry = 0;
+    if (primaryTf.swingPoints && primaryTf.swingPoints.length > 0) {
+      entry = primaryTf.swingPoints[primaryTf.swingPoints.length - 1].price;
+    }
+
+    // Default ATR
+    const atr = primaryTf.volatility?.atr || entry * 0.02; 
+    
+    if (entry === 0) return null;
+
+    let stopLoss = 0;
+    let tp1 = 0, tp2 = 0, tp3 = 0;
+
+    if (setup.direction === 'LONG') {
+      // Find nearest support
+      const support = primaryTf.support.find(s => s.price < entry) || { price: entry - (atr * 2) };
+      stopLoss = support.price - (atr * 0.5); // buffer below support
+      if (entry - stopLoss < atr) stopLoss = entry - (atr * 1.5); // Enforce minimum distance
+      
+      const risk = entry - stopLoss;
+      tp1 = entry + (risk * 1.5);
+      tp2 = entry + (risk * 2.5);
+      tp3 = entry + (risk * 4.0);
+    } else {
+      // Find nearest resistance
+      const resistance = primaryTf.resistance.find(r => r.price > entry) || { price: entry + (atr * 2) };
+      stopLoss = resistance.price + (atr * 0.5); // buffer above resistance
+      if (stopLoss - entry < atr) stopLoss = entry + (atr * 1.5);
+
+      const risk = stopLoss - entry;
+      tp1 = entry - (risk * 1.5);
+      tp2 = entry - (risk * 2.5);
+      tp3 = entry - (risk * 4.0);
+    }
+
+    const risk = Math.abs(entry - stopLoss);
+    const reward = Math.abs(tp2 - entry); // Calculate default R:R against TP2
+
+    return {
+      entry,
+      stopLoss,
+      tp1,
+      tp2,
+      tp3,
+      risk,
+      reward,
+      riskRewardRatio: risk > 0 ? reward / risk : 0,
+      invalidationLevel: stopLoss
     };
   }
 };

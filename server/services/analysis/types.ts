@@ -103,6 +103,51 @@ export interface TechnicalAnalysisSnapshot {
   opportunityScore?: number;
 }
 
+export interface TradePlan {
+  entry: number;
+  stopLoss: number;
+  tp1: number;
+  tp2: number;
+  tp3: number;
+  risk: number;
+  reward: number;
+  riskRewardRatio: number;
+  invalidationLevel: number;
+}
+
+export interface DeterministicScreeningResult {
+  symbol: string;
+  snapshotId: string;
+  timestamp: number;
+
+  marketRegime: MarketRegime;
+
+  trend: {
+    htf4h: string;
+    htf1h: string;
+    mtf15m: string;
+    entry5m: string;
+    alignmentScore: number;
+  };
+
+  technicalScore: number;
+  momentumScore: number;
+  volumeScore: number;
+  structureScore: number;
+  liquidityScore: number;
+
+  candidateTrade: {
+    side: "LONG" | "SHORT" | "NONE";
+    setupType: string;
+    valid: boolean;
+    reason: string;
+  };
+
+  tradePlan?: TradePlan;
+
+  status: "CANDIDATE" | "WAIT" | "NO_TRADE" | "INSUFFICIENT_DATA";
+}
+
 export const INDICATOR_CONFIG = {
   SMA_PERIODS: [20, 50, 200],
   EMA_PERIODS: [9, 21, 50, 200],

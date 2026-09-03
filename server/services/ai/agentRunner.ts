@@ -10,6 +10,7 @@ import { ConsensusEngine } from './consensusEngine';
 import { ModelRegistry } from './modelRegistry';
 import { DynamicModelRouter } from './dynamicModelRouter';
 import { TradeDecisionEngine } from '../analysis/tradeDecisionEngine';
+import { DeterministicMarketScreeningEngine } from '../analysis/screeningEngine';
 import { AnalysisService } from '../analysis/analysisService';
 import { MasterDecisionOutput } from './schemas/types';
 import { OpportunityService } from '../opportunities/opportunityService';
@@ -118,62 +119,40 @@ export const AgentRunner = {
       
       console.log(`[MarketData] VALID`);
       
-      // Inject snapshot ID and timestamp into the data payload
-      const payload = { ...data, marketSnapshotId, dataTimestamp: data.timestamp };
+      // ── 2. Deterministic Screening Gate ─────────────────────────────────────────
+      const screeningResult = DeterministicMarketScreeningEngine.screen(data, marketSnapshotId);
 
+      // Inject deterministic screening into the payload so AI can review it
+      const payload = { ...data, marketSnapshotId, dataTimestamp: data.timestamp, screeningResult };
 
-      // ── 2. Lightweight Screening via DynamicModelRouter ─────────────────────
-      // The router automatically fails over to the next best model if needed.
-      let screeningResult: any;
-      let screeningModelId: string;
-      try {
-        const routerResult = await DynamicModelRouter.executeWithFailover<any>(
-          JSON.stringify(payload),
-          'ScreeningAnalysis',
-          `${PROMPTS.screening.description}\n${PROMPTS.screening.instructions}`,
-
-          `Screening:${symbol}`,
-          undefined,
-          { analysisRequestId, roleRequestId: crypto.randomUUID(), expectedTotalRoles: 1 }
-        );
-        screeningResult = routerResult.data;
-        screeningModelId = routerResult.modelId;
-      } catch (err) {
-        if (err instanceof AIUnavailableError) {
-          console.warn(`[AgentRunner] AI_UNAVAILABLE during screening for ${symbol}.`);
-          return makeUnavailableResult(symbol, err.attemptedModels);
-        }
-        throw err;
-      }
-
-      // ── 3. Screening Gate ────────────────────────────────────────────────────
-      if (!screeningResult?.passScreening || screeningResult?.status === 'ERROR') {
+      if (screeningResult.status === 'NO_TRADE' || screeningResult.status === 'INSUFFICIENT_DATA' || screeningResult.status === 'WAIT') {
         const result: MasterDecisionOutput = {
           analysisId: crypto.randomUUID(),
           symbol,
           timestamp: Date.now(),
-          provider: screeningModelId,
-          status: screeningResult?.status === 'ERROR' ? 'ANALYSIS_FAILED' : 'NO_TRADE',
-          decision: screeningResult?.status === 'ERROR' ? null : 'NO_TRADE',
-          confidence: 0,
+          provider: 'Backend',
+          status: screeningResult.status,
+          decision: screeningResult.status === 'NO_TRADE' ? 'NO_TRADE' : (screeningResult.status === 'WAIT' ? 'WAIT' : null),
+          confidence: screeningResult.technicalScore,
           timeframe: '1h',
-          marketBias: 'NEUTRAL',
-          reasoning: screeningResult?.status === 'ERROR' ? 'Screening failed: Invalid AI output' : 'Screening rejected: No meaningful setup forming.',
+          marketBias: screeningResult.marketRegime === 'BULLISH' || screeningResult.marketRegime === 'STRONG_BULLISH' ? 'BULLISH' : 
+                      (screeningResult.marketRegime === 'BEARISH' || screeningResult.marketRegime === 'STRONG_BEARISH' ? 'BEARISH' : 'NEUTRAL'),
+          reasoning: screeningResult.candidateTrade.reason,
           supportingFactors: [],
           conflictingFactors: [],
           riskLevel: 'LOW',
           tradeCandidate: null,
           agentResults: { screening: screeningResult } as any,
-          consensusScore: '0/0',
+          consensusScore: `${screeningResult.technicalScore}/100`,
           marketSnapshotId,
           dataTimestamp: payload.dataTimestamp
         };
         console.log(`[Screening] REJECT (${result.reasoning})`);
-        console.log(`[Decision] NO_TRADE`);
+        console.log(`[Decision] ${result.status}`);
         return result;
       }
       
-      console.log(`[Screening] PASS`);
+      console.log(`[Screening] PASS (Score: ${screeningResult.technicalScore})`);
 
       // ── 4. Deep Analysis Pipeline ────────────────────────────────────────────
       let finalResult: MasterDecisionOutput;
@@ -309,22 +288,23 @@ export const AgentRunner = {
           }
         });
 
+        let aiConsensus: MasterDecisionOutput;
         if (validDecisions.length === 0) {
-          console.warn(`[AgentRunner] All models failed in parallel pipeline for ${symbol}. Returning AI_UNAVAILABLE.`);
-          return makeUnavailableResult(symbol, eligibleModels.map(e => e.id));
+          console.warn(`[AgentRunner] All models failed in parallel pipeline for ${symbol}. Proceeding with AI_UNAVAILABLE.`);
+          aiConsensus = makeUnavailableResult(symbol, eligibleModels.map(e => e.id));
+        } else {
+          aiConsensus = ConsensusEngine.calculateConsensus(
+             symbol, 
+             validDecisions, 
+             minModels, 
+             minConsensusPercent,
+             rolePromptKeys.length,
+             failedAnalyses,
+             unavailableAnalyses
+          );
+          console.log(`[Consensus] VALID_COUNT: ${validDecisions.length} / ${rolePromptKeys.length}`);
+          AIPerformanceTracker.trackConsensus(aiConsensus, validDecisions);
         }
-
-        let aiConsensus = ConsensusEngine.calculateConsensus(
-           symbol, 
-           validDecisions, 
-           minModels, 
-           minConsensusPercent,
-           rolePromptKeys.length,
-           failedAnalyses,
-           unavailableAnalyses
-        );
-        console.log(`[Consensus] VALID_COUNT: ${validDecisions.length} / ${rolePromptKeys.length}`);
-        AIPerformanceTracker.trackConsensus(aiConsensus, validDecisions);
         
         aiConsensus.marketSnapshotId = marketSnapshotId;
         aiConsensus.dataTimestamp = payload.dataTimestamp;
@@ -337,12 +317,32 @@ export const AgentRunner = {
            aiConsensus.decision = 'CANDIDATE_TRADE';
         } else if (decisionResult.status === 'WAIT') {
            aiConsensus.decision = 'WATCH';
+        } else if (decisionResult.status === 'AI_UNAVAILABLE') {
+           // Do NOT map to NO_TRADE. Map it cleanly to null or keep it clear.
+           aiConsensus.decision = null;
         } else {
            aiConsensus.decision = 'NO_TRADE';
         }
         
         // Populate opportunity score dynamically to the payload
         (aiConsensus as any).opportunityScore = decisionResult.score;
+        
+        // Override the trade candidate with the strict deterministic plan
+        if (payload.screeningResult?.tradePlan) {
+           const tp = payload.screeningResult.tradePlan;
+           aiConsensus.tradeCandidate = {
+              side: payload.screeningResult.candidateTrade.side as any,
+              entryZone: { min: tp.entry * 0.999, max: tp.entry * 1.001 },
+              stopLoss: tp.stopLoss,
+              takeProfitLevels: [tp.tp1, tp.tp2, tp.tp3],
+              riskRewardRatio: tp.riskRewardRatio,
+              invalidationCondition: 'Price breaches Stop Loss',
+              thesis: decisionResult.reasoning,
+              timeframe: '1h'
+           };
+        } else if (aiConsensus.status === 'NO_TRADE' || aiConsensus.status === 'WAIT') {
+           aiConsensus.tradeCandidate = null;
+        }
 
         finalResult = aiConsensus;
       }
