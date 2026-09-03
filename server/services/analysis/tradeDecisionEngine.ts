@@ -18,7 +18,12 @@ export const TradeDecisionEngine = {
     const setup = primaryTf.setup;
 
     if (!setup || setup.type === 'NO_SETUP' || !setup.isValid) {
-      return { status: 'NO_TRADE', score: 0, reasoning: setup?.reasoning || 'No valid trade setup detected in current structure.' };
+      const t4h = snapshot.timeframes['4h']?.trend || 'N/A';
+      const t1h = snapshot.timeframes['1h']?.trend || 'N/A';
+      const t15m = snapshot.timeframes['15m']?.trend || 'N/A';
+      const t5m = snapshot.timeframes['5m']?.trend || 'N/A';
+      const mtfStr = `[4H=${t4h}, 1H=${t1h}, 15M=${t15m}, 5M=${t5m}]`;
+      return { status: 'NO_TRADE', score: 0, reasoning: `${mtfStr} ${setup?.reasoning || 'No clear trade setup detected.'}` };
     }
 
     let score = 0;

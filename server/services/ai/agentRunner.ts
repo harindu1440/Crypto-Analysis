@@ -63,6 +63,45 @@ function makeUnavailableResult(symbol: string, attemptedModels: string[]): Maste
   };
 }
 
+function logDeterministicSnapshot(symbol: string, data: any, screening: any) {
+  console.log(`\n=== DETERMINISTIC MARKET ANALYSIS FOR ${symbol} ===`);
+  
+  // Indicators
+  for (const tf of ['4h', '1h', '15m', '5m']) {
+    const d = data.timeframes[tf];
+    if (d) {
+      const i = d.indicators;
+      console.log(`[Indicators] ${tf.toUpperCase()}: EMA20=${i.ema[20]?.toFixed(2) || 'N/A'}, EMA50=${i.ema[50]?.toFixed(2) || 'N/A'}, EMA200=${i.ema[200]?.toFixed(2) || 'N/A'}, RSI=${i.rsi[14]?.toFixed(2) || 'N/A'}, MACD=${i.macd?.histogram?.toFixed(4) || 'N/A'}, ATR=${i.atr?.toFixed(2) || 'N/A'}, ADX=${i.adx?.toFixed(2) || 'N/A'}`);
+    }
+  }
+
+  console.log('');
+  // Structure
+  for (const tf of ['4h', '1h', '15m', '5m']) {
+    const d = data.timeframes[tf];
+    if (d) {
+      console.log(`[Structure] ${tf.toUpperCase()}: ${d.trend} | BOS/CHoCH state: ${d.structure ? JSON.stringify(d.structure) : 'NONE'}`);
+    }
+  }
+
+  const primary = data.timeframes['1h'];
+  console.log(`\n[Regime] ${primary?.marketRegime || 'UNKNOWN'}`);
+  
+  if (primary?.support?.length > 0) {
+    console.log(`[SupportResistance] Support nearest: $${primary.support[0].price.toFixed(2)} (${primary.support[0].touches} touches)`);
+  }
+  if (primary?.resistance?.length > 0) {
+    console.log(`[SupportResistance] Resistance nearest: $${primary.resistance[0].price.toFixed(2)} (${primary.resistance[0].touches} touches)`);
+  }
+
+  console.log(`[Momentum] ${primary?.momentum || 'N/A'}`);
+  console.log(`[Volume] ${primary?.volumeCondition || 'N/A'}`);
+
+  console.log(`\n[SetupDetector] Candidate: ${screening.candidateTrade.side}`);
+  console.log(`[SetupDetector] Reason:\n${screening.candidateTrade.reason}`);
+  console.log(`\n=== END DETERMINISTIC ANALYSIS (Score: ${screening.technicalScore}/100) ===\n`);
+}
+
 // ─── AgentRunner ──────────────────────────────────────────────────────────────
 
 export const AgentRunner = {
@@ -124,6 +163,9 @@ export const AgentRunner = {
 
       // Inject deterministic screening into the payload so AI can review it
       const payload = { ...data, marketSnapshotId, dataTimestamp: data.timestamp, screeningResult };
+
+      // Output massive deterministic log to prove AI is not a black-box
+      logDeterministicSnapshot(symbol, data, screeningResult);
 
       if (screeningResult.status === 'NO_TRADE' || screeningResult.status === 'INSUFFICIENT_DATA' || screeningResult.status === 'WAIT') {
         const result: MasterDecisionOutput = {

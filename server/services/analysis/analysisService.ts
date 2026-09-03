@@ -39,6 +39,12 @@ export const AnalysisService = {
         quoteVolume: 0 // Simplification for now
       }));
 
+      console.log(`[MarketData] Fetched ${candles.length} actual OHLCV candles for ${interval.toUpperCase()}`);
+
+      if (candles.length < 100) {
+        console.warn(`[MarketData] Warning: Insufficient candle history for ${interval} (${candles.length}/200). Indicators may be inaccurate.`);
+      }
+
       if (candles.length === 0) continue;
       
       latestPrice = candles[candles.length - 1].close;
