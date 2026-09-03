@@ -51,7 +51,12 @@ function makeUnavailableResult(symbol: string, attemptedModels: string[]): Maste
     riskLevel: 'LOW',
     tradeCandidate: null,
     agentResults: {} as any,
-    consensusScore: '0/0'
+    consensusScore: '0/0',
+    modelsUsed: attemptedModels.length,
+    successfulAnalyses: 0,
+    failedAnalyses: attemptedModels.length,
+    unavailableAnalyses: attemptedModels.length,
+    failureReason: 'All eligible AI models exhausted'
   };
 }
 
@@ -75,14 +80,18 @@ export const AgentRunner = {
 
     activeAnalysisLocks.add(lockKey);
     const analysisRequestId = crypto.randomUUID();
-    console.log(`[AgentRunner] Started AI analysis pipeline for ${symbol} (ID: ${analysisRequestId})`);
+    console.log(`[AgentRunner] START (Symbol: ${symbol} | ID: ${analysisRequestId})`);
 
     try {
       // ── 1. Get Market Data Snapshot ─────────────────────────────────────────
+      console.log(`[MarketData] FETCHING`);
       const data = await AnalysisService.getAnalysisSnapshot(symbol, ['15m', '1h', '4h', '1d']);
+      const marketSnapshotId = `snap_${Date.now()}_${crypto.randomUUID().substring(0, 8)}`;
       
       if (!data || !data.timeframes['1h']) {
         console.warn(`[AgentRunner] INSUFFICIENT_DATA for ${symbol}.`);
+        console.log(`[MarketData] INVALID`);
+        console.log(`[Decision] INSUFFICIENT_DATA`);
         return {
           analysisId: crypto.randomUUID(),
           symbol,
@@ -99,9 +108,17 @@ export const AgentRunner = {
           riskLevel: 'LOW',
           tradeCandidate: null,
           agentResults: {} as any,
-          consensusScore: '0/0'
+          consensusScore: '0/0',
+          marketSnapshotId,
+          dataTimestamp: data?.timestamp || Date.now()
         };
       }
+      
+      console.log(`[MarketData] VALID`);
+      
+      // Inject snapshot ID and timestamp into the data payload
+      const payload = { ...data, marketSnapshotId, dataTimestamp: data.timestamp };
+
 
       // ── 2. Lightweight Screening via DynamicModelRouter ─────────────────────
       // The router automatically fails over to the next best model if needed.
@@ -109,9 +126,10 @@ export const AgentRunner = {
       let screeningModelId: string;
       try {
         const routerResult = await DynamicModelRouter.executeWithFailover<any>(
-          JSON.stringify(data),
+          JSON.stringify(payload),
           'ScreeningAnalysis',
           `${PROMPTS.screening.description}\n${PROMPTS.screening.instructions}`,
+
           `Screening:${symbol}`,
           undefined,
           { analysisRequestId, roleRequestId: crypto.randomUUID(), expectedTotalRoles: 1 }
@@ -144,11 +162,16 @@ export const AgentRunner = {
           riskLevel: 'LOW',
           tradeCandidate: null,
           agentResults: { screening: screeningResult } as any,
-          consensusScore: '0/0'
+          consensusScore: '0/0',
+          marketSnapshotId,
+          dataTimestamp: payload.dataTimestamp
         };
-        console.log(`[AgentRunner] Screening REJECTED for ${symbol}. ${result.reasoning}`);
+        console.log(`[Screening] REJECT (${result.reasoning})`);
+        console.log(`[Decision] NO_TRADE`);
         return result;
       }
+      
+      console.log(`[Screening] PASS`);
 
       // ── 4. Deep Analysis Pipeline ────────────────────────────────────────────
       let finalResult: MasterDecisionOutput;
@@ -257,7 +280,7 @@ export const AgentRunner = {
           const requiredCapabilities = capabilitiesMap[role] || { structuredOutput: true };
 
           return DynamicModelRouter.executeWithFailover<any>(
-            JSON.stringify(data),
+            JSON.stringify(payload),
             'MasterDecision',
             `${roleConfig.description}\n${roleConfig.instructions}`,
             `RoleDecision[${role}]:${symbol}`,
@@ -268,13 +291,20 @@ export const AgentRunner = {
 
         const settled = await Promise.allSettled(promises);
         const validDecisions: MasterDecisionOutput[] = [];
+        let failedAnalyses = 0;
+        let unavailableAnalyses = 0;
 
         settled.forEach((res, i) => {
           if (res.status === 'fulfilled') {
             validDecisions.push(res.value);
             AIPerformanceTracker.trackDecision(res.value);
+            console.log(`[AI] ${res.value.provider} / ${res.value.model} SUCCESS`);
           } else {
-            console.warn(`[AgentRunner] Model ${eligibleModels[i]?.id || 'unknown'} failed in Multi-Model pipeline: ${(res as any).reason?.message}`);
+            const reason = (res as any).reason;
+            if (reason instanceof AIUnavailableError) unavailableAnalyses++;
+            else failedAnalyses++;
+            console.log(`[AI] FAILED: ${reason?.message}`);
+            console.warn(`[AgentRunner] Model ${eligibleModels[i]?.id || 'unknown'} failed in Multi-Model pipeline: ${reason?.message}`);
           }
         });
 
@@ -288,12 +318,19 @@ export const AgentRunner = {
            validDecisions, 
            minModels, 
            minConsensusPercent,
-           rolePromptKeys.length
+           rolePromptKeys.length,
+           failedAnalyses,
+           unavailableAnalyses
         );
+        console.log(`[Consensus] VALID_COUNT: ${validDecisions.length} / ${rolePromptKeys.length}`);
         AIPerformanceTracker.trackConsensus(finalResult, validDecisions);
+        
+        finalResult.marketSnapshotId = marketSnapshotId;
+        finalResult.dataTimestamp = payload.dataTimestamp;
       }
 
-      console.log(`[AgentRunner] Completed AI analysis for ${symbol}. Decision: ${finalResult.decision} | Provider: ${finalResult.provider}`);
+      console.log(`[Decision] ${finalResult.status}`);
+      console.log(`[AgentRunner] Completed AI analysis for ${symbol}. Status: ${finalResult.status} | Provider: ${finalResult.provider}`);
 
       // Store in memory cache
       latestAnalysisResults.set(symbol, finalResult);
@@ -332,6 +369,7 @@ export const AgentRunner = {
         }
 
         if (valid) {
+          console.log(`[Risk] PASS`);
           const risk = Math.abs(entryPrice - c.stopLoss);
           const reward = Math.abs(c.takeProfitLevels[0] - entryPrice);
           c.riskRewardRatio = risk > 0 ? parseFloat((reward / risk).toFixed(2)) : 0;
@@ -339,6 +377,7 @@ export const AgentRunner = {
         }
 
         if (!valid) {
+          console.log(`[Risk] FAIL`);
           finalResult.status = 'NO_TRADE';
           finalResult.decision = 'NO_TRADE';
           finalResult.reasoning = 'Deterministically rejected by Risk validation engine. ' + finalResult.reasoning;

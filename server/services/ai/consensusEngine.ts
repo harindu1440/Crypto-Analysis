@@ -8,17 +8,20 @@ export class ConsensusEngine {
     decisions: MasterDecisionOutput[],
     minModels: number,
     minConsensusPercent: number,
-    expectedTotalRoles: number = 1
+    expectedTotalRoles: number = 1,
+    failedAnalyses: number = 0,
+    unavailableAnalyses: number = 0
   ): MasterDecisionOutput {
     
     const validDecisions = decisions.filter(d => d && d.decision);
+    const modelsUsed = validDecisions.length;
     
     // Strict minimum: if we got fewer valid decisions than the configured minimum, fail.
     // (We only relax this if the total expected roles is somehow less than minModels)
     const strictMinModels = Math.min(minModels, expectedTotalRoles);
     
     if (validDecisions.length < strictMinModels) {
-      return this.createFallback(symbol, `Insufficient models available for consensus. Got ${validDecisions.length}, need ${strictMinModels}.`, validDecisions);
+      return this.createFallback(symbol, `Insufficient models available for consensus. Got ${validDecisions.length}, need ${strictMinModels}.`, validDecisions, failedAnalyses, unavailableAnalyses);
     }
     
     let buyWeight = 0;
@@ -118,17 +121,21 @@ export class ConsensusEngine {
       riskLevel: finalRisk,
       tradeCandidate: finalCandidate,
       agentResults: {} as any, // Multi-model doesn't use the legacy 7-step structure here
-      consensusScore: `${validDecisions.length}/${validDecisions.length}`
+      consensusScore: `${validDecisions.length}/${validDecisions.length}`,
+      modelsUsed,
+      successfulAnalyses: validDecisions.length,
+      failedAnalyses,
+      unavailableAnalyses
     };
   }
   
-  private static createFallback(symbol: string, reason: string, partialResults: MasterDecisionOutput[]): MasterDecisionOutput {
+  private static createFallback(symbol: string, reason: string, partialResults: MasterDecisionOutput[], failedAnalyses: number = 0, unavailableAnalyses: number = 0): MasterDecisionOutput {
     return {
       analysisId: crypto.randomUUID(),
       symbol,
       timestamp: Date.now(),
       provider: 'Multi-Model-Consensus',
-      status: 'ANALYSIS_FAILED',
+      status: 'AI_UNAVAILABLE', // Must be AI_UNAVAILABLE not NO_TRADE or just ANALYSIS_FAILED if it didn't meet min requirements
       decision: null,
       confidence: 0,
       timeframe: '1h',
@@ -139,7 +146,12 @@ export class ConsensusEngine {
       riskLevel: 'HIGH',
       tradeCandidate: null,
       agentResults: {} as any,
-      consensusScore: `${partialResults.length}/Required`
+      consensusScore: `${partialResults.length}/Required`,
+      modelsUsed: partialResults.length,
+      successfulAnalyses: partialResults.length,
+      failedAnalyses,
+      unavailableAnalyses,
+      failureReason: reason
     };
   }
 }

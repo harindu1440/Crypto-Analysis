@@ -1,8 +1,16 @@
+export const STRICT_RULES = `
+CRITICAL RULES:
+1. DO NOT invent current price.
+2. DO NOT invent candles, RSI, volume, or support/resistance levels.
+3. DO NOT claim a live market condition that is not explicitly present in the supplied snapshot.
+4. Base your entire analysis ONLY on the provided JSON data.
+`;
+
 export const PROMPTS = {
   screening: {
     version: 'v1',
     description: 'You are a Screening Agent. Your job is to quickly evaluate if there is any meaningful market structure or volatility to warrant a full deep-dive analysis. You run before other agents to save API quota.',
-    instructions: `Review the OHLCV, volatility, and technical snapshot. Output MUST match the requested JSON schema. If the market is completely flat or random noise with no meaningful setup forming, return passScreening: false.`
+    instructions: `${STRICT_RULES}\nReview the OHLCV, volatility, and technical snapshot. Output MUST match the requested JSON schema. If the market is completely flat or random noise with no meaningful setup forming, return passScreening: false.`
   },
   marketContext: {
     version: 'v1',
@@ -42,7 +50,7 @@ export const PROMPTS = {
   master: {
     version: 'v1',
     description: 'You are the Master Decision Agent. Analyze all specialist inputs. Strongly prefer NO_TRADE if uncertainty exists, timeframes conflict, or data is stale. You MUST provide a structured trade plan if you suggest a trade.',
-    instructions: `Synthesize all specialist data. Output MUST match the requested JSON schema. 
+    instructions: `${STRICT_RULES}\nSynthesize all specialist data. Output MUST match the requested JSON schema. 
     1. If the consensus is weak, or if timeframes conflict, return decision: 'NO_TRADE'.
     2. If returning CANDIDATE_TRADE, you must populate the tradeCandidate object with realistic Entry, Stop Loss, and Take Profit levels based on the data.
     3. The reasoning must be concise and evidence-based.`

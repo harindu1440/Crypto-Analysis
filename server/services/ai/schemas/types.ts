@@ -92,6 +92,13 @@ export interface MasterDecisionOutput {
   role?: string;
   status: AnalysisStatus;
   decision: Decision | null;
+  failureReason?: string;
+  modelsUsed?: number;
+  successfulAnalyses?: number;
+  failedAnalyses?: number;
+  unavailableAnalyses?: number;
+  marketSnapshotId?: string;
+  dataTimestamp?: number;
 
   confidence: number;
   timeframe: string;
