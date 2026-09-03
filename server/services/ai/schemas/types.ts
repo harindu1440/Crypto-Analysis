@@ -1,5 +1,7 @@
 export type AgentStatus = 'UNAVAILABLE' | 'COMPLETE' | 'ANALYZING' | 'ERROR';
-export type Decision = 'NO_TRADE' | 'WATCH' | 'CANDIDATE_TRADE';
+export type AnalysisStatus = 'TRADE_READY' | 'NO_TRADE' | 'ANALYSIS_FAILED' | 'AI_UNAVAILABLE' | 'QUOTA_EXHAUSTED' | 'INVALID_ANALYSIS' | 'INSUFFICIENT_DATA';
+export type Decision = 'BUY' | 'SELL' | 'NO_TRADE' | 'WATCH' | 'CANDIDATE_TRADE';
+
 export type TradeSide = 'LONG' | 'SHORT';
 
 export interface ScreeningAnalysisOutput {
@@ -88,7 +90,9 @@ export interface MasterDecisionOutput {
   provider: string;
   model?: string;
   role?: string;
-  decision: Decision;
+  status: AnalysisStatus;
+  decision: Decision | null;
+
   confidence: number;
   timeframe: string;
   marketBias: MarketBias;

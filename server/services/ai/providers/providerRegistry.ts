@@ -10,7 +10,7 @@ import { GeminiProvider } from './geminiProvider';
 import { GroqProvider } from './groqProvider';
 import { OpenRouterProvider } from './openRouterProvider';
 import { HuggingFaceProvider } from './huggingFaceProvider';
-import { ModelRegistry, ModelRegistryEntry } from '../modelRegistry';
+import { ModelRegistry, ModelRegistryEntry, ModelStatus } from '../modelRegistry';
 import { DynamicModelRouter } from '../dynamicModelRouter';
 
 export type AIRole =

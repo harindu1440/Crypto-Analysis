@@ -97,9 +97,5 @@ export class GroqProvider extends BaseAIProvider {
       }
       this.recordSuccess();
       return parsed;
-    } catch (err: any) {
-      this.recordFailure(err);
-      throw err;
-    }
   }
 }

@@ -38,8 +38,14 @@ export class ConsensusEngine {
     const uniqueModelsCount = Object.keys(modelUsageCount).length;
     
     for (const dec of validDecisions) {
+      // Weights based on role (Technical/PriceAction have higher weight)
+      let roleWeight = 1.0;
+      if (dec.role === 'TECHNICAL ANALYST' || dec.role === 'PRICE ACTION ANALYST') roleWeight = 1.25;
+      else if (dec.role === 'MOMENTUM ANALYST' || dec.role === 'INDEPENDENT MARKET ANALYST') roleWeight = 1.0;
+      else if (dec.role === 'RISK CHALLENGER') roleWeight = 0.75; // Risk focuses on veto
+
       // Base weight from confidence
-      let weight = 1 + (dec.confidence / 100);
+      let weight = (1 + (dec.confidence / 100)) * roleWeight;
       
       // Penalize models that dominate the consensus to prevent echo-chamber effect
       const usageCount = modelUsageCount[dec.provider];
@@ -65,21 +71,29 @@ export class ConsensusEngine {
     const sellPercent = (sellWeight / totalWeight) * 100;
     const waitPercent = (waitWeight / totalWeight) * 100;
     
-    let finalDecision: Decision = 'NO_TRADE';
+    let finalDecision: Decision | null = 'NO_TRADE';
+    let finalStatus: any = 'NO_TRADE';
     let finalCandidate = null;
     let finalConfidence = 0;
     let reasoning = `Consensus Breakdown - BUY: ${buyPercent.toFixed(1)}%, SELL: ${sellPercent.toFixed(1)}%, WAIT: ${waitPercent.toFixed(1)}% | Models: ${validDecisions.length} (Unique: ${uniqueModelsCount})`;
     
-    if (buyPercent >= minConsensusPercent) {
-      finalDecision = 'CANDIDATE_TRADE';
+    // Check against config thresholds (using the environment or default)
+    const minConfidenceRequired = parseInt(process.env.AI_MIN_CONFIDENCE || '65');
+    
+    if (buyPercent >= minConsensusPercent && buyPercent >= minConfidenceRequired) {
+      finalDecision = 'BUY';
+      finalStatus = 'TRADE_READY';
       finalConfidence = buyPercent;
       finalCandidate = candidates.find(c => c.side === 'LONG') || null;
-    } else if (sellPercent >= minConsensusPercent) {
-      finalDecision = 'CANDIDATE_TRADE';
+    } else if (sellPercent >= minConsensusPercent && sellPercent >= minConfidenceRequired) {
+      finalDecision = 'SELL';
+      finalStatus = 'TRADE_READY';
       finalConfidence = sellPercent;
       finalCandidate = candidates.find(c => c.side === 'SHORT') || null;
     } else {
-      reasoning = 'Consensus not reached or models disagree significantly. ' + reasoning;
+      reasoning = 'Consensus not reached or confidence too low. ' + reasoning;
+      finalDecision = 'NO_TRADE';
+      finalStatus = 'NO_TRADE';
     }
     
     // Average out risk level
@@ -93,10 +107,11 @@ export class ConsensusEngine {
       symbol,
       timestamp: Date.now(),
       provider: 'Multi-Model-Consensus',
+      status: finalStatus,
       decision: finalDecision,
       confidence: finalConfidence,
       timeframe: validDecisions[0]?.timeframe || '1h',
-      marketBias: finalDecision === 'CANDIDATE_TRADE' ? (finalCandidate?.side === 'LONG' ? 'BULLISH' : 'BEARISH') : 'NEUTRAL',
+      marketBias: finalStatus === 'TRADE_READY' ? (finalCandidate?.side === 'LONG' ? 'BULLISH' : 'BEARISH') : 'NEUTRAL',
       reasoning,
       supportingFactors: validDecisions.flatMap(d => d.supportingFactors).slice(0, 5),
       conflictingFactors: validDecisions.flatMap(d => d.conflictingFactors).slice(0, 5),
@@ -113,7 +128,8 @@ export class ConsensusEngine {
       symbol,
       timestamp: Date.now(),
       provider: 'Multi-Model-Consensus',
-      decision: 'NO_TRADE',
+      status: 'ANALYSIS_FAILED',
+      decision: null,
       confidence: 0,
       timeframe: '1h',
       marketBias: 'NEUTRAL',

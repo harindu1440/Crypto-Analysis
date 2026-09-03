@@ -1,5 +1,6 @@
 import { EventBus } from '../system/eventBus';
 import { AgentRunner } from './agentRunner';
+import { MarketScannerService } from '../market/marketScannerService';
 
 export type AnalysisPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 
@@ -28,6 +29,25 @@ class AiTriggerEngine {
     
     // Check pending queue every 5 seconds
     setInterval(() => this.processQueue(), 5000);
+
+    // 30-Minute Scheduled Scan
+    setInterval(() => this.runScheduledScan(), 30 * 60 * 1000);
+    
+    // Initial scan on startup (delayed by 15s to allow connections)
+    setTimeout(() => this.runScheduledScan(), 15000);
+  }
+
+  private async runScheduledScan() {
+    try {
+      console.log('[AiTriggerService] Running 30-minute scheduled scan...');
+      const candidates = await MarketScannerService.getTopCandidates(5);
+      
+      for (const candidate of candidates) {
+        this.requestAnalysis(candidate.symbol, 'HIGH', [`Scheduled Scan (${candidate.reasons.join(', ')})`]);
+      }
+    } catch (e: any) {
+      console.error('[AiTriggerService] Scheduled scan failed:', e.message);
+    }
   }
 
   private evaluateMarketUpdate(symbol: string, data: any) {

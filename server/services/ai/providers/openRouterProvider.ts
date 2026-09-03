@@ -59,8 +59,10 @@ export class OpenRouterProvider extends BaseAIProvider {
           model: this.model,
           messages,
           temperature: 0.1,
-          response_format: { type: 'json_object' }
-        })
+          // Omitted response_format to maximize compatibility with models that don't support it.
+          // The robust extractJson handles markdown/preamble stripping.
+        }),
+        signal: AbortSignal.timeout(30000) // Hard safety net to prevent hanging
       });
     } catch (networkErr: any) {
       // fetch() itself threw — network-level failure

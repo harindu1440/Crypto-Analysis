@@ -184,7 +184,7 @@ class MonitoringOrchestrator {
       // 1. AI Analysis
       const masterDecision = await AgentRunner.runAnalysis(symbol);
       state.lastAnalysisId = masterDecision.analysisId;
-      state.lastDecision = masterDecision.decision;
+      state.lastDecision = masterDecision.decision || undefined;
 
       this.logEvent(symbol, `AI Decision: ${masterDecision.decision}`, masterDecision.decision === 'CANDIDATE_TRADE' ? 'SUCCESS' : 'INFO');
 

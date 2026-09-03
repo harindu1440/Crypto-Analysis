@@ -202,7 +202,7 @@ class GlobalMonitoringOrchestrator {
     try {
       const masterDecision = await AgentRunner.runAnalysis(symbol);
       state.lastAnalysisId = masterDecision.analysisId;
-      state.lastDecision = masterDecision.decision;
+      state.lastDecision = masterDecision.decision || undefined;
 
       if (masterDecision.decision === 'NO_TRADE') {
         state.consecutiveNoTrade++;

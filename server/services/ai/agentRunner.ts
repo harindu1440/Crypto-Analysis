@@ -29,6 +29,8 @@ const activeAnalysisLocks = new Set<string>();
 
 // Simple in-memory cache to store the latest analysis per symbol
 const latestAnalysisResults = new Map<string, MasterDecisionOutput>();
+// Analysis cache for duplicate prevention
+const analysisCache = new Map<string, { expiresAt: number; result: MasterDecisionOutput }>();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -38,7 +40,8 @@ function makeUnavailableResult(symbol: string, attemptedModels: string[]): Maste
     symbol,
     timestamp: Date.now(),
     provider: 'AI_UNAVAILABLE',
-    decision: 'NO_TRADE',
+    status: 'AI_UNAVAILABLE',
+    decision: null,
     confidence: 0,
     timeframe: '1h',
     marketBias: 'NEUTRAL',
@@ -63,6 +66,13 @@ export const AgentRunner = {
       throw new Error(`Analysis for ${symbol} is already in progress.`);
     }
 
+    // Cache check
+    const cached = analysisCache.get(symbol);
+    if (cached && cached.expiresAt > Date.now()) {
+      console.log(`[AgentRunner] Cache hit for ${symbol}. Skipping redundant AI analysis.`);
+      return cached.result;
+    }
+
     activeAnalysisLocks.add(lockKey);
     const analysisRequestId = crypto.randomUUID();
     console.log(`[AgentRunner] Started AI analysis pipeline for ${symbol} (ID: ${analysisRequestId})`);
@@ -70,6 +80,28 @@ export const AgentRunner = {
     try {
       // ── 1. Get Market Data Snapshot ─────────────────────────────────────────
       const data = await AnalysisService.getAnalysisSnapshot(symbol, ['15m', '1h', '4h', '1d']);
+      
+      if (!data || !data.timeframes['1h']) {
+        console.warn(`[AgentRunner] INSUFFICIENT_DATA for ${symbol}.`);
+        return {
+          analysisId: crypto.randomUUID(),
+          symbol,
+          timestamp: Date.now(),
+          provider: 'Backend',
+          status: 'INSUFFICIENT_DATA',
+          decision: null,
+          confidence: 0,
+          timeframe: '1h',
+          marketBias: 'NEUTRAL',
+          reasoning: 'Insufficient historical market data to perform analysis.',
+          supportingFactors: [],
+          conflictingFactors: [],
+          riskLevel: 'LOW',
+          tradeCandidate: null,
+          agentResults: {} as any,
+          consensusScore: '0/0'
+        };
+      }
 
       // ── 2. Lightweight Screening via DynamicModelRouter ─────────────────────
       // The router automatically fails over to the next best model if needed.
@@ -101,11 +133,12 @@ export const AgentRunner = {
           symbol,
           timestamp: Date.now(),
           provider: screeningModelId,
-          decision: 'NO_TRADE',
+          status: screeningResult?.status === 'ERROR' ? 'ANALYSIS_FAILED' : 'NO_TRADE',
+          decision: screeningResult?.status === 'ERROR' ? null : 'NO_TRADE',
           confidence: 0,
           timeframe: '1h',
           marketBias: 'NEUTRAL',
-          reasoning: 'Screening rejected: No meaningful setup forming.',
+          reasoning: screeningResult?.status === 'ERROR' ? 'Screening failed: Invalid AI output' : 'Screening rejected: No meaningful setup forming.',
           supportingFactors: [],
           conflictingFactors: [],
           riskLevel: 'LOW',
@@ -113,7 +146,7 @@ export const AgentRunner = {
           agentResults: { screening: screeningResult } as any,
           consensusScore: '0/0'
         };
-        console.log(`[AgentRunner] Screening REJECTED for ${symbol}. No trade setup forming.`);
+        console.log(`[AgentRunner] Screening REJECTED for ${symbol}. ${result.reasoning}`);
         return result;
       }
 
@@ -264,6 +297,13 @@ export const AgentRunner = {
 
       // Store in memory cache
       latestAnalysisResults.set(symbol, finalResult);
+      
+      if (finalResult.status === 'TRADE_READY' || finalResult.status === 'NO_TRADE') {
+         analysisCache.set(symbol, {
+           expiresAt: Date.now() + 15 * 60 * 1000, // 15 minute cache
+           result: finalResult
+         });
+      }
 
       EventBus.publish({
         eventType: 'AI_ANALYSIS_COMPLETED',
@@ -299,6 +339,7 @@ export const AgentRunner = {
         }
 
         if (!valid) {
+          finalResult.status = 'NO_TRADE';
           finalResult.decision = 'NO_TRADE';
           finalResult.reasoning = 'Deterministically rejected by Risk validation engine. ' + finalResult.reasoning;
           finalResult.tradeCandidate = null;
@@ -310,6 +351,7 @@ export const AgentRunner = {
 
       if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate) {
         if (!qualityEval.isQualified) {
+          finalResult.status = 'NO_TRADE';
           finalResult.decision = 'NO_TRADE';
           finalResult.reasoning = `Quality Engine Rejected: ${qualityEval.rejectionReasons.join(', ')} | ` + finalResult.reasoning;
           finalResult.tradeCandidate = null;
@@ -324,7 +366,7 @@ export const AgentRunner = {
       }
 
       // ── 8. Publish Trade Opportunity ──────────────────────────────────────────
-      if (finalResult.decision === 'CANDIDATE_TRADE' && finalResult.tradeCandidate && qualityEval.isQualified) {
+      if (finalResult.status === 'TRADE_READY' && finalResult.tradeCandidate && qualityEval.isQualified) {
         const c = finalResult.tradeCandidate;
         const opp: TradeOpportunity & { adaptiveIntelligence?: any } = {
           id: crypto.randomUUID(),

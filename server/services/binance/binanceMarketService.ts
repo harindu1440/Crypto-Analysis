@@ -24,6 +24,13 @@ export const BinanceMarketService = {
     return await response.json();
   },
 
+  async getAllTickers(): Promise<BinanceTicker[]> {
+    const response = await fetch(`${BASE_URL}/ticker/24hr`);
+    if (!response.ok) throw new Error(`Failed to fetch all tickers`);
+    return await response.json();
+  },
+
+
   async getKlines(symbol: string, interval: string = '1h', limit: number = 24): Promise<BinanceKline[]> {
     const response = await fetch(`${BASE_URL}/klines?symbol=${symbol.toUpperCase()}&interval=${interval}&limit=${limit}`);
     if (!response.ok) throw new Error(`Failed to fetch klines for ${symbol}`);

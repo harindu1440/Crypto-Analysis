@@ -20,6 +20,7 @@ describe('AdaptiveIntelligenceService', () => {
   const mockSignal: MasterDecisionOutput = {
     symbol: 'BTCUSDT',
     timeframe: '1h',
+    status: 'TRADE_READY',
     decision: 'CANDIDATE_TRADE',
     confidence: 0.80,
     reasoning: 'Test',

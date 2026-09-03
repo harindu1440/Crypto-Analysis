@@ -51,7 +51,8 @@ export class HuggingFaceProvider extends BaseAIProvider {
           messages,
           temperature: 0.1,
           max_tokens: 1500
-        })
+        }),
+        signal: AbortSignal.timeout(30000) // Hard safety net to prevent hanging
       });
     } catch (networkErr: any) {
       this.recordFailure(networkErr);
