@@ -22,7 +22,11 @@ export const AnalysisService = {
   async getAnalysisSnapshot(symbol: string, intervals: string[] = ['4h', '1h', '15m', '5m']): Promise<TechnicalAnalysisSnapshot> {
     const timeframes: Record<string, TimeframeAnalysis> = {};
     let latestPrice = 0;
-    let latestVolume = 0;
+    
+    // Fetch real 24h ticker for accurate quote volume
+    const ticker = await BinanceMarketService.getTicker(symbol);
+    const volume24h = parseFloat(ticker.quoteVolume);
+    const change24h = parseFloat(ticker.priceChangePercent);
 
     for (const interval of intervals) {
       // Fetch 200 candles to ensure enough data for SMA 200 / EMA 200
@@ -36,7 +40,7 @@ export const AnalysisService = {
         low: parseFloat(k.low),
         close: parseFloat(k.close),
         volume: parseFloat(k.volume),
-        quoteVolume: 0 // Simplification for now
+        quoteVolume: parseFloat(k.quoteVolume || '0')
       }));
 
       console.log(`[MarketData] Fetched ${candles.length} actual OHLCV candles for ${interval.toUpperCase()}`);
@@ -48,7 +52,6 @@ export const AnalysisService = {
       if (candles.length === 0) continue;
       
       latestPrice = candles[candles.length - 1].close;
-      latestVolume = candles[candles.length - 1].volume;
 
       const closes = candles.map(c => c.close);
       
@@ -115,8 +118,8 @@ export const AnalysisService = {
       timestamp: Date.now(),
       market: {
         price: latestPrice,
-        volume24h: latestVolume,
-        change24h: 0 
+        volume24h: volume24h,
+        change24h: change24h 
       },
       timeframes,
       multiTimeframeAlignment: alignment,

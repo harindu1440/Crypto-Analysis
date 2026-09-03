@@ -23,4 +23,5 @@ export interface BinanceKline {
   close: string;
   volume: string;
   closeTime: number;
+  quoteVolume?: string;
 }

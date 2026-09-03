@@ -42,7 +42,8 @@ export const BinanceMarketService = {
       low: d[3],
       close: d[4],
       volume: d[5],
-      closeTime: d[6]
+      closeTime: d[6],
+      quoteVolume: d[7]
     }));
   }
 };

@@ -42,8 +42,18 @@ export const DeterministicMarketScreeningEngine = {
       defaultResult.status = 'CANDIDATE';
     }
     
-    defaultResult.technicalScore = decision.score;
-    defaultResult.candidateTrade.reason = decision.reasoning;
+    defaultResult.technicalScore = decision.scores.total;
+    defaultResult.structureScore = decision.scores.structure;
+    defaultResult.momentumScore = decision.scores.momentum;
+    defaultResult.volumeScore = decision.scores.volume;
+    defaultResult.liquidityScore = decision.scores.liquidity;
+    
+    // Pass blocking conditions into the reasoning for downstream logging
+    if (decision.blockingConditions && decision.blockingConditions.length > 0) {
+      defaultResult.candidateTrade.reason = `Blocking Conditions:\n- ${decision.blockingConditions.join('\n- ')}`;
+    } else {
+      defaultResult.candidateTrade.reason = decision.reasoning;
+    }
     defaultResult.candidateTrade.valid = decision.status === 'TRADE_READY' || decision.status === 'WAIT';
     defaultResult.candidateTrade.setupType = snapshot.timeframes['1h'].setup.type;
     defaultResult.candidateTrade.side = snapshot.timeframes['1h'].setup.direction === 'NEUTRAL' ? 'NONE' : snapshot.timeframes['1h'].setup.direction;

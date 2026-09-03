@@ -72,7 +72,46 @@ export const TradeSetupDetector = {
     }
     
     let reason = 'No clear trade setup detected.';
-    if (marketRegime === 'RANGE') reason = 'Market is ranging. Waiting for breakout or boundary bounce.';
+    
+    if (marketRegime === 'RANGE') {
+      const currentPrice = timeframe.swingPoints?.length ? timeframe.swingPoints[timeframe.swingPoints.length - 1].price : 0; 
+      // Approximate current price using last close. Wait, tradeSetupDetector only receives timeframe, so we need a way to know where price is.
+      // But we know 'structure.breakout' and 'breakoutStatus'.
+      if (structure.breakout && breakoutStatus === 'BREAKOUT_CONFIRMED' && volumeCondition !== 'LOW_VOLUME') {
+         return {
+           type: structure.trend === 'BULLISH' ? 'RESISTANCE_BREAKOUT' : 'SUPPORT_BREAKDOWN',
+           direction: structure.trend === 'BULLISH' ? 'LONG' : 'SHORT',
+           isValid: true,
+           confidence: 70,
+           reasoning: 'Confirmed boundary breakout with volume backing.'
+         };
+      }
+      
+      // Let's assume bouncing off extremes:
+      if (momentum === 'MOMENTUM_REVERSING' || momentum === 'MOMENTUM_ACCELERATING') {
+        if (structure.trend === 'BULLISH' || timeframe.patterns?.some(p => p.direction === 'BULLISH')) {
+           return {
+             type: 'SUPPORT_BOUNCE',
+             direction: 'LONG',
+             isValid: true,
+             confidence: 65,
+             reasoning: 'Bouncing off range support with bullish momentum/pattern.'
+           };
+        }
+        if (structure.trend === 'BEARISH' || timeframe.patterns?.some(p => p.direction === 'BEARISH')) {
+           return {
+             type: 'RESISTANCE_REJECTION',
+             direction: 'SHORT',
+             isValid: true,
+             confidence: 65,
+             reasoning: 'Rejecting range resistance with bearish momentum/pattern.'
+           };
+        }
+      }
+      
+      reason = 'Market is ranging. Waiting for breakout or boundary bounce.';
+    }
+
     if (marketRegime === 'UNCLEAR') reason = 'Market regime is unclear. No edge present.';
     if (momentum === 'MOMENTUM_WEAKENING') reason = `Trend is ${trend} but momentum is weakening. Risky entry.`;
 

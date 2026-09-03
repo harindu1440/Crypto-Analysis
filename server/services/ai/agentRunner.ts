@@ -128,7 +128,32 @@ function logDeterministicSnapshot(symbol: string, data: any, screening: any) {
   console.log(`[Volume] ${primary?.volumeCondition || 'N/A'}`);
 
   console.log(`\n[SetupDetector] Candidate: ${screening.candidateTrade.side}`);
-  console.log(`[SetupDetector] Reason:\n${screening.candidateTrade.reason}`);
+  
+  if (screening.candidateTrade.side !== 'NONE') {
+    const s = screening;
+    console.log(`[SetupScore]`);
+    console.log(`Structure=${s.structureScore || 0}`);
+    console.log(`MTF=${s.technicalScore > 0 ? 20 : 0}`); // Rough approximation, better if we pass raw scores
+    console.log(`Momentum=${s.momentumScore || 0}`);
+    console.log(`Volume=${s.volumeScore || 0}`);
+    console.log(`Liquidity=${s.liquidityScore || 0}`);
+    console.log(`Total=${s.technicalScore}/100`);
+    
+    if (screening.tradePlan) {
+      console.log(`\n[TradePlan]`);
+      console.log(`Entry=${screening.tradePlan.entry}`);
+      console.log(`StopLoss=${screening.tradePlan.stopLoss.toFixed(2)}`);
+      console.log(`TP1=${screening.tradePlan.tp1.toFixed(2)}`);
+      console.log(`TP2=${screening.tradePlan.tp2.toFixed(2)}`);
+      console.log(`TP3=${screening.tradePlan.tp3.toFixed(2)}`);
+      console.log(`RR=${screening.tradePlan.riskRewardRatio.toFixed(2)}`);
+      console.log(`Invalidation=${screening.tradePlan.invalidationLevel.toFixed(2)}`);
+    }
+  } else {
+    console.log(`[SetupScore] LONG=0/100 SHORT=0/100`);
+  }
+
+  console.log(`[SetupDetector] \n${screening.candidateTrade.reason}`);
   console.log(`\n=== END DETERMINISTIC ANALYSIS (Score: ${screening.technicalScore}/100) ===\n`);
 }
 
@@ -350,7 +375,8 @@ export const AgentRunner = {
           if (res.status === 'fulfilled') {
             validDecisions.push(res.value);
             AIPerformanceTracker.trackDecision(res.value);
-            console.log(`[AI] ${res.value.provider} / ${res.value.model} SUCCESS`);
+            const roleName = (res.value as any).role || 'Analyst';
+            console.log(`[AI] ${roleName}=${res.value.decision}`);
           } else {
             const reason = (res as any).reason;
             if (reason instanceof AIUnavailableError) unavailableAnalyses++;
@@ -397,7 +423,7 @@ export const AgentRunner = {
         }
         
         // Populate opportunity score dynamically to the payload
-        (aiConsensus as any).opportunityScore = decisionResult.score;
+        (aiConsensus as any).opportunityScore = decisionResult.scores.total;
         
         // Override the trade candidate with the strict deterministic plan
         if (payload.screeningResult?.tradePlan) {
