@@ -79,8 +79,8 @@ export const CandleService = {
         }
       }
       
-      if (isSwingHigh) resistance.push({ type: 'resistance', price: candles[i].high, strength: 3 });
-      if (isSwingLow) support.push({ type: 'support', price: candles[i].low, strength: 3 });
+      if (isSwingHigh) resistance.push({ type: 'resistance', price: candles[i].high, strength: 3, touches: 1, distancePercent: 0 });
+      if (isSwingLow) support.push({ type: 'support', price: candles[i].low, strength: 3, touches: 1, distancePercent: 0 });
     }
     
     // Keep only the most relevant recent ones (e.g. closest to current price)

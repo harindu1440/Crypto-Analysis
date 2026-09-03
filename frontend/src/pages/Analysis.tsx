@@ -57,7 +57,6 @@ const Analysis: React.FC = () => {
         
         // We will merge polled events with SSE, but polling is safe fallback
         setMonitorEvents(prev => {
-          const combined = [...prev, ...mEvents];
           // Deduplicate by id if possible, simple approach: just use new for now
           return mEvents.length > 0 ? mEvents : prev;
         });

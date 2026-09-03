@@ -43,7 +43,7 @@ export const useMarketData = () => {
 
     const connect = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = import.meta.env.DEV ? 'localhost:3000' : window.location.host;
+      const host = (import.meta as any).env?.DEV ? 'localhost:3000' : window.location.host;
       const ws = new WebSocket(`${protocol}//${host}`);
       wsRef.current = ws;
 
@@ -69,7 +69,7 @@ export const useMarketData = () => {
       ws.onclose = () => {
         setWsConnected(false);
         wsRef.current = null;
-        reconnectTimer = setTimeout(connect, 5000);
+        reconnectTimer = window.setTimeout(connect, 5000);
       };
       
       ws.onerror = () => {

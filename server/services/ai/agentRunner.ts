@@ -88,10 +88,10 @@ export const AgentRunner = {
     try {
       // ── 1. Get Market Data Snapshot ─────────────────────────────────────────
       console.log(`[MarketData] FETCHING`);
-      const data = await AnalysisService.getAnalysisSnapshot(symbol, ['15m', '1h', '4h', '1d']);
+      const data = await AnalysisService.getAnalysisSnapshot(symbol, ['4h', '1h', '15m', '5m']);
       const marketSnapshotId = `snap_${Date.now()}_${crypto.randomUUID().substring(0, 8)}`;
       
-      if (!data || !data.timeframes['1h']) {
+      if (!data || !data.timeframes['4h'] || !data.timeframes['1h'] || !data.timeframes['15m'] || !data.timeframes['5m']) {
         console.warn(`[AgentRunner] INSUFFICIENT_DATA for ${symbol}.`);
         console.log(`[MarketData] INVALID`);
         console.log(`[Decision] INSUFFICIENT_DATA`);
@@ -454,10 +454,10 @@ export const AgentRunner = {
             { name: 'Sentiment', bias: finalResult.agentResults?.sentiment?.bias || 'NEUTRAL', explanation: finalResult.agentResults?.sentiment?.sentimentReasoning || 'N/A' }
           ],
           timeframes: [
-            { timeframe: '1D', bias: finalResult.agentResults?.timeframe?.higherTimeframeBias || 'NEUTRAL' },
-            { timeframe: '4H', bias: finalResult.agentResults?.timeframe?.mediumTermBias || 'NEUTRAL' },
-            { timeframe: '1H', bias: finalResult.agentResults?.timeframe?.shortTermBias || 'NEUTRAL' },
-            { timeframe: '15m', bias: finalResult.decision === 'CANDIDATE_TRADE' ? (finalResult.tradeCandidate?.side === 'LONG' ? 'BULLISH' : 'BEARISH') : 'NEUTRAL' }
+            { timeframe: '4H', bias: data.timeframes['4h']?.trend || 'NEUTRAL' },
+            { timeframe: '1H', bias: data.timeframes['1h']?.trend || 'NEUTRAL' },
+            { timeframe: '15m', bias: data.timeframes['15m']?.trend || 'NEUTRAL' },
+            { timeframe: '5m', bias: data.timeframes['5m']?.trend || 'NEUTRAL' }
           ],
           marketData: {
             price: data.market.price,

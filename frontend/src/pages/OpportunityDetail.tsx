@@ -219,6 +219,25 @@ export default function OpportunityDetail() {
           <Card title="Why AI Likes This Setup">
             <div className="reasoning-box">
               <p>{opp.reason}</p>
+              {opp.qualityBreakdown && (
+                <div className="mt-4">
+                  <h4 className="text-gray-300 font-bold mb-2">Deterministic Scoring</h4>
+                  <ul className="list-none space-y-1 text-sm text-gray-400">
+                    <li><strong>Structure:</strong> {opp.qualityBreakdown.structureScore}/20</li>
+                    <li><strong>Momentum:</strong> {opp.qualityBreakdown.momentumScore}/10</li>
+                    <li><strong>Volume:</strong> {opp.qualityBreakdown.volumeScore}/10</li>
+                    <li><strong>S/R & R:R:</strong> {opp.qualityBreakdown.liquidityScore}/15</li>
+                  </ul>
+                </div>
+              )}
+              {opp.rejectionReasons && opp.rejectionReasons.length > 0 && (
+                <div className="mt-4 text-orange-400">
+                  <h4 className="font-bold mb-2">What to watch / Risks</h4>
+                  <ul className="list-disc list-inside text-sm">
+                    {opp.rejectionReasons.map((r: string, idx: number) => <li key={idx}>{r}</li>)}
+                  </ul>
+                </div>
+              )}
             </div>
           </Card>
 

@@ -19,7 +19,7 @@ import {
 
 export const AnalysisService = {
   
-  async getAnalysisSnapshot(symbol: string, intervals: string[] = ['1h']): Promise<TechnicalAnalysisSnapshot> {
+  async getAnalysisSnapshot(symbol: string, intervals: string[] = ['4h', '1h', '15m', '5m']): Promise<TechnicalAnalysisSnapshot> {
     const timeframes: Record<string, TimeframeAnalysis> = {};
     let latestPrice = 0;
     let latestVolume = 0;
@@ -56,12 +56,18 @@ export const AnalysisService = {
       const adx = IndicatorService.adx(candles, 14) || 0;
       const stochastic = IndicatorService.stochastic(candles, 14, 3, 3) || { k: 50, d: 50 };
       const volumeSma = IndicatorService.volumeSma(candles.map(c => c.volume), 20) || 0;
+      
+      const currentCandle = candles[candles.length - 1];
+      const previousCandle = candles.length > 1 ? candles[candles.length - 2] : currentCandle;
+      const priceVelocity = currentCandle.close - previousCandle.close;
+      const averageCandleRange = candles.slice(-20).reduce((sum, c) => sum + (c.high - c.low), 0) / 20;
+      const volumeRatio = volumeSma > 0 ? currentCandle.volume / volumeSma : 1;
 
-      const indicators = { sma, ema, rsi, macd, bollingerBands, atr, adx, stochastic, volumeSma };
+      const indicators = { sma, ema, rsi, macd, bollingerBands, atr, adx, stochastic, volumeSma, priceVelocity, averageCandleRange, volumeRatio };
 
       // Deterministic Engines
       const swingPoints = MarketStructureEngine.detectSwingPoints(candles);
-      const structure = MarketStructureEngine.analyzeStructure(swingPoints);
+      const structure = MarketStructureEngine.analyzeStructure(swingPoints, candles);
       const { trend } = this.classifyMarket(closes, ema);
       const volatility = this.analyzeVolatility(latestPrice, atr);
       const marketRegime = MarketRegimeEngine.classifyRegime(latestPrice, indicators, volatility, structure);
@@ -96,7 +102,7 @@ export const AnalysisService = {
       } as TimeframeAnalysis;
     }
 
-    const { alignment, overallRegime, overallDirection } = MultiTimeframeEngine.analyzeAlignment(timeframes);
+    const { alignment, overallRegime, overallDirection, mtfAlignmentScore, action } = MultiTimeframeEngine.analyzeAlignment(timeframes);
 
     return {
       symbol,
@@ -108,6 +114,8 @@ export const AnalysisService = {
       },
       timeframes,
       multiTimeframeAlignment: alignment,
+      mtfAlignmentScore,
+      mtfAction: action,
       overallRegime,
       overallDirection
     };

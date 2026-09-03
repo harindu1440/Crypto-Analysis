@@ -4,7 +4,7 @@ export type VolatilityLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME';
 export type VolumeCondition = 'LOW_VOLUME' | 'NORMAL_VOLUME' | 'HIGH_VOLUME' | 'VOLUME_EXPANSION' | 'VOLUME_CONTRACTION' | 'VOLUME_BREAKOUT';
 export type BreakoutStatus = 'BREAKOUT_CONFIRMED' | 'BREAKOUT_UNCONFIRMED' | 'BREAKOUT_FAILED' | 'NO_BREAKOUT';
 export type MomentumState = 'MOMENTUM_ACCELERATING' | 'MOMENTUM_STABLE' | 'MOMENTUM_WEAKENING' | 'MOMENTUM_REVERSING';
-export type TradeSetupType = 'TREND_CONTINUATION' | 'BREAKOUT_RETEST' | 'SUPPORT_BOUNCE' | 'BULLISH_REVERSAL' | 'HIGHER_LOW_CONTINUATION' | 'BREAKDOWN_RETEST' | 'RESISTANCE_REJECTION' | 'BEARISH_REVERSAL' | 'LOWER_HIGH_CONTINUATION' | 'NO_SETUP';
+export type TradeSetupType = 'TREND_CONTINUATION_LONG' | 'TREND_CONTINUATION_SHORT' | 'BREAKOUT_RETEST_LONG' | 'SUPPORT_BOUNCE' | 'BULLISH_REVERSAL' | 'HIGHER_LOW_CONTINUATION' | 'RESISTANCE_BREAKOUT' | 'BREAKDOWN_RETEST_SHORT' | 'RESISTANCE_REJECTION' | 'BEARISH_REVERSAL' | 'LOWER_HIGH_CONTINUATION' | 'SUPPORT_BREAKDOWN' | 'NO_SETUP';
 
 export interface SwingPoint {
   type: 'HH' | 'HL' | 'LH' | 'LL' | 'UNKNOWN';
@@ -35,7 +35,9 @@ export interface NormalizedCandle {
 export interface SupportResistanceLevel {
   type: 'support' | 'resistance';
   price: number;
-  strength: number; // 1 to 5
+  strength: number; // 1 to 100
+  touches: number;
+  distancePercent: number;
 }
 
 export interface PatternDetection {
@@ -63,6 +65,9 @@ export interface IndicatorSnapshot {
   adx?: number;
   stochastic?: { k: number; d: number };
   volumeSma?: number;
+  priceVelocity?: number;
+  averageCandleRange?: number;
+  volumeRatio?: number;
 }
 
 export interface VolatilityAnalysis {
@@ -83,7 +88,7 @@ export interface TimeframeAnalysis {
   volatility: VolatilityAnalysis;
   momentum: MomentumState;
   swingPoints: SwingPoint[];
-  structure: 'BULLISH' | 'BEARISH' | 'CHOP' | 'CONSOLIDATION';
+  structure: { trend: 'BULLISH' | 'BEARISH' | 'CHOP' | 'CONSOLIDATION', bos: boolean, choch: boolean, breakout: boolean };
   setup: TradeSetup;
   breakoutStatus: BreakoutStatus;
 }
@@ -98,6 +103,8 @@ export interface TechnicalAnalysisSnapshot {
   };
   timeframes: Record<string, TimeframeAnalysis>;
   multiTimeframeAlignment?: 'BULLISH' | 'BEARISH' | 'CONFLICTING' | 'NEUTRAL';
+  mtfAlignmentScore?: number;
+  mtfAction?: 'TRADE_READY' | 'WAIT' | 'NO_TRADE';
   overallRegime?: MarketRegime;
   overallDirection?: 'LONG' | 'SHORT' | 'NEUTRAL';
   opportunityScore?: number;

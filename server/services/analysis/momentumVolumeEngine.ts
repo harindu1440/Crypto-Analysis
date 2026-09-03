@@ -5,24 +5,26 @@ export const MomentumVolumeEngine = {
     const rsi = indicators.rsi[14] || 50;
     const macdHist = indicators.macd.histogram;
     const adx = indicators.adx || 0;
+    const priceVelocity = indicators.priceVelocity || 0;
+    const volumeRatio = indicators.volumeRatio || 1;
     
-    // Simplistic previous state checks - in a real engine we'd compare historical array,
-    // but for now we infer from MACD histogram direction and ADX strength.
-    
-    if (adx > 25 && Math.abs(macdHist) > 0) { // Should ideally check if macdHist is growing
+    if (adx >= 25 && Math.abs(priceVelocity) > 0 && volumeRatio >= 1.2) {
       if (rsi > 60 || rsi < 40) return 'MOMENTUM_ACCELERATING';
     }
     
-    if (adx < 20 && Math.abs(macdHist) < 0.01) {
+    if (adx < 20 || volumeRatio < 0.8) {
       return 'MOMENTUM_STABLE';
     }
     
-    if (adx > 30 && (rsi > 70 || rsi < 30)) {
-      // Potentially overextended or exhausting
+    if (adx >= 25 && volumeRatio < 1 && Math.abs(priceVelocity) < (indicators.averageCandleRange || 1) * 0.5) {
       return 'MOMENTUM_WEAKENING';
     }
+    
+    // Divergence or quick flip
+    if ((rsi > 70 && priceVelocity < 0) || (rsi < 30 && priceVelocity > 0)) {
+      return 'MOMENTUM_REVERSING';
+    }
 
-    // Default
     return 'MOMENTUM_STABLE';
   },
   

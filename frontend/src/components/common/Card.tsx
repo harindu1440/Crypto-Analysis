@@ -4,11 +4,12 @@ interface CardProps {
   title?: string;
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }
 
-export const Card: React.FC<CardProps> = ({ title, children, className = '' }) => {
+export const Card: React.FC<CardProps> = ({ title, children, className = '', style = {} }) => {
   return (
-    <div className={`card ${className}`} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div className={`card ${className}`} style={{ display: 'flex', flexDirection: 'column', gap: '12px', ...style }}>
       {title && <h3 style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>{title}</h3>}
       <div>{children}</div>
     </div>

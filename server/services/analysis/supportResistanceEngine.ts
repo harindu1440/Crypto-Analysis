@@ -35,13 +35,17 @@ export const SupportResistanceEngine = {
       }
     }
 
+    const currentPrice = candles.length > 0 ? candles[candles.length - 1].close : 0;
+
     for (const cluster of clusters) {
       // Filter out isolated points
       if (cluster.count >= 2) {
         const level: SupportResistanceLevel = {
           type: cluster.type === 'HIGH' ? 'resistance' : 'support',
           price: cluster.price,
-          strength: Math.min(5, cluster.count)
+          strength: Math.min(100, cluster.count * 20),
+          touches: cluster.count,
+          distancePercent: currentPrice > 0 ? Math.abs(cluster.price - currentPrice) / currentPrice * 100 : 0
         };
         
         if (level.type === 'resistance') resistance.push(level);

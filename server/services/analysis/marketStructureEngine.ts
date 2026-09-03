@@ -59,8 +59,9 @@ export const MarketStructureEngine = {
     return classified;
   },
   
-  analyzeStructure(swings: SwingPoint[]): 'BULLISH' | 'BEARISH' | 'CHOP' | 'CONSOLIDATION' {
-    if (swings.length < 4) return 'CHOP';
+  analyzeStructure(swings: SwingPoint[], candles?: NormalizedCandle[]): { trend: 'BULLISH' | 'BEARISH' | 'CHOP' | 'CONSOLIDATION', bos: boolean, choch: boolean, breakout: boolean } {
+    const result = { trend: 'CHOP' as 'BULLISH' | 'BEARISH' | 'CHOP' | 'CONSOLIDATION', bos: false, choch: false, breakout: false };
+    if (swings.length < 4) return result;
     
     const recent = swings.slice(-4);
     
@@ -69,10 +70,31 @@ export const MarketStructureEngine = {
     const hasLL = recent.some(s => s.type === 'LL');
     const hasLH = recent.some(s => s.type === 'LH');
     
-    if (hasHH && hasHL && !hasLL && !hasLH) return 'BULLISH';
-    if (hasLL && hasLH && !hasHH && !hasHL) return 'BEARISH';
-    if (!hasHH && !hasLL) return 'CONSOLIDATION';
+    if (hasHH && hasHL && !hasLL && !hasLH) result.trend = 'BULLISH';
+    else if (hasLL && hasLH && !hasHH && !hasHL) result.trend = 'BEARISH';
+    else if (!hasHH && !hasLL) result.trend = 'CONSOLIDATION';
     
-    return 'CHOP';
+    // Detect BOS and CHoCH
+    // A BOS (Break of Structure) happens when a trend continues by breaking the last high/low.
+    // A CHoCH (Change of Character) happens when a previous HL is broken (bullish to bearish) or LH is broken (bearish to bullish).
+    
+    if (recent.length >= 2) {
+       const last = recent[recent.length - 1];
+       const prev = recent[recent.length - 2];
+       if (last.type === 'HH' || last.type === 'LL') result.bos = true;
+       
+       if (last.type === 'LL' && prev.type === 'HH') result.choch = true; // Bullish to Bearish
+       if (last.type === 'HH' && prev.type === 'LL') result.choch = true; // Bearish to Bullish
+    }
+    
+    // Breakout detection
+    if (candles && candles.length > 0 && result.trend === 'CONSOLIDATION') {
+       const current = candles[candles.length - 1];
+       const recentHigh = Math.max(...recent.map(s => s.type === 'HH' || s.type === 'LH' || s.type === 'UNKNOWN' && s.price > current.low ? s.price : 0));
+       const recentLow = Math.min(...recent.map(s => s.type === 'LL' || s.type === 'HL' || s.type === 'UNKNOWN' && s.price < current.high ? s.price : Infinity));
+       if (current.close > recentHigh || current.close < recentLow) result.breakout = true;
+    }
+
+    return result;
   }
 };

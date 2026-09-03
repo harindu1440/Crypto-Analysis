@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Card } from '../components/common/Card';
 import { useAuth } from '../context/AuthContext';
 import { GlossaryTooltip } from '../components/common/GlossaryTooltip';
-import { Activity, Clock, ShieldCheck, AlertTriangle, ArrowRight, Ban, Filter, BarChart2 } from 'lucide-react';
+import { Activity, ShieldCheck, AlertTriangle, ArrowRight, Ban, Filter, BarChart2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Signals: React.FC = () => {

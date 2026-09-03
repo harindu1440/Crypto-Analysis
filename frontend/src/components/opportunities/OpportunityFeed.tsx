@@ -49,7 +49,22 @@ export const OpportunityFeed: React.FC = () => {
               <div className="opp-reason">
                 <strong>Why this trade?</strong>
                 <p>{opp.reason}</p>
-                <p><strong>Setup:</strong> {opp.setup}</p>
+                {opp.qualityBreakdown && (
+                   <ul className="opp-quality-breakdown">
+                     <li><strong>Structure:</strong> {opp.qualityBreakdown.structureScore}/20</li>
+                     <li><strong>Momentum:</strong> {opp.qualityBreakdown.momentumScore}/10</li>
+                     <li><strong>Volume:</strong> {opp.qualityBreakdown.volumeScore}/10</li>
+                     <li><strong>S/R & R:R:</strong> {opp.qualityBreakdown.liquidityScore}/15</li>
+                   </ul>
+                )}
+                {opp.rejectionReasons && opp.rejectionReasons.length > 0 && (
+                  <div className="opp-rejection">
+                    <strong>What to watch / Risks:</strong>
+                    <ul>
+                      {opp.rejectionReasons.map((r: string, idx: number) => <li key={idx}>{r}</li>)}
+                    </ul>
+                  </div>
+                )}
               </div>
               
               <div className="opp-metrics">
@@ -68,6 +83,10 @@ export const OpportunityFeed: React.FC = () => {
                 <div className="metric">
                   <label><GlossaryTooltip term="RISK/REWARD">RISK/REWARD</GlossaryTooltip></label>
                   <span>1 : {opp.riskRewardRatio}</span>
+                </div>
+                <div className="metric">
+                  <label><GlossaryTooltip term="QUALITY SCORE">OPPORTUNITY SCORE</GlossaryTooltip></label>
+                  <span>{opp.qualityScore || opp.confidence}/100</span>
                 </div>
               </div>
               <div className="opp-footer" style={{ marginTop: '16px', textAlign: 'right' }}>
