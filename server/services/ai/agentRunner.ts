@@ -7,6 +7,9 @@
 import { AIAgent } from './aiAgent';
 import { ProviderRegistry } from './providers/providerRegistry';
 import { ConsensusEngine } from './consensusEngine';
+import { ModelRegistry } from './modelRegistry';
+import { DynamicModelRouter } from './dynamicModelRouter';
+import { TradeDecisionEngine } from '../analysis/tradeDecisionEngine';
 import { AnalysisService } from '../analysis/analysisService';
 import { MasterDecisionOutput } from './schemas/types';
 import { OpportunityService } from '../opportunities/opportunityService';
@@ -14,8 +17,7 @@ import { TradeOpportunity } from '../opportunities/types';
 import { SignalQualityService } from './signalQualityService';
 import { AdaptiveIntelligenceService } from './adaptiveIntelligenceService';
 import { EventBus } from '../system/eventBus';
-import { DynamicModelRouter, AIUnavailableError } from './dynamicModelRouter';
-import { ModelRegistry } from './modelRegistry';
+import { AIUnavailableError } from './dynamicModelRouter';
 import { AIPerformanceTracker } from './aiPerformanceTracker';
 import { PROMPTS } from './prompts';
 import { ROLE_PROMPTS } from './prompts/roles';
@@ -266,11 +268,10 @@ export const AgentRunner = {
         const rolePromptKeys = Object.keys(ROLE_PROMPTS) as any[];
         
         const capabilitiesMap: Record<string, any> = {
-           'TECHNICAL ANALYST': { structuredOutput: true, technicalAnalysis: true },
-           'MOMENTUM ANALYST': { structuredOutput: true, reasoning: true },
+           'MARKET STRUCTURE ANALYST': { structuredOutput: true, technicalAnalysis: true },
+           'TECHNICAL + MOMENTUM ANALYST': { structuredOutput: true, reasoning: true },
            'PRICE ACTION ANALYST': { structuredOutput: true, reasoning: true, technicalAnalysis: true },
-           'RISK CHALLENGER': { structuredOutput: true, reasoning: true, riskAnalysis: true },
-           'INDEPENDENT MARKET ANALYST': { structuredOutput: true, reasoning: true }
+           'RISK CHALLENGER': { structuredOutput: true, reasoning: true, riskAnalysis: true }
         };
 
         const promises = rolePromptKeys.map((role) => {
@@ -313,7 +314,7 @@ export const AgentRunner = {
           return makeUnavailableResult(symbol, eligibleModels.map(e => e.id));
         }
 
-        finalResult = ConsensusEngine.calculateConsensus(
+        let aiConsensus = ConsensusEngine.calculateConsensus(
            symbol, 
            validDecisions, 
            minModels, 
@@ -323,10 +324,27 @@ export const AgentRunner = {
            unavailableAnalyses
         );
         console.log(`[Consensus] VALID_COUNT: ${validDecisions.length} / ${rolePromptKeys.length}`);
-        AIPerformanceTracker.trackConsensus(finalResult, validDecisions);
+        AIPerformanceTracker.trackConsensus(aiConsensus, validDecisions);
         
-        finalResult.marketSnapshotId = marketSnapshotId;
-        finalResult.dataTimestamp = payload.dataTimestamp;
+        aiConsensus.marketSnapshotId = marketSnapshotId;
+        aiConsensus.dataTimestamp = payload.dataTimestamp;
+
+        const decisionResult = TradeDecisionEngine.evaluate(data, aiConsensus);
+        
+        aiConsensus.status = decisionResult.status as any; // Map back the refined WAIT/NO_TRADE/TRADE_READY
+        aiConsensus.reasoning = decisionResult.reasoning;
+        if (decisionResult.status === 'TRADE_READY') {
+           aiConsensus.decision = 'CANDIDATE_TRADE';
+        } else if (decisionResult.status === 'WAIT') {
+           aiConsensus.decision = 'WATCH';
+        } else {
+           aiConsensus.decision = 'NO_TRADE';
+        }
+        
+        // Populate opportunity score dynamically to the payload
+        (aiConsensus as any).opportunityScore = decisionResult.score;
+
+        finalResult = aiConsensus;
       }
 
       console.log(`[Decision] ${finalResult.status}`);

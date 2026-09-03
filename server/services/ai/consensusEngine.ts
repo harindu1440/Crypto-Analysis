@@ -43,9 +43,10 @@ export class ConsensusEngine {
     for (const dec of validDecisions) {
       // Weights based on role (Technical/PriceAction have higher weight)
       let roleWeight = 1.0;
-      if (dec.role === 'TECHNICAL ANALYST' || dec.role === 'PRICE ACTION ANALYST') roleWeight = 1.25;
-      else if (dec.role === 'MOMENTUM ANALYST' || dec.role === 'INDEPENDENT MARKET ANALYST') roleWeight = 1.0;
-      else if (dec.role === 'RISK CHALLENGER') roleWeight = 0.75; // Risk focuses on veto
+      if (dec.role === 'MARKET STRUCTURE ANALYST') roleWeight = 1.30;
+      else if (dec.role === 'PRICE ACTION ANALYST') roleWeight = 1.25;
+      else if (dec.role === 'TECHNICAL + MOMENTUM ANALYST') roleWeight = 1.10;
+      else if (dec.role === 'RISK CHALLENGER') roleWeight = 1.50; // Risk has high weight because its veto is critical
 
       // Base weight from confidence
       let weight = (1 + (dec.confidence / 100)) * roleWeight;

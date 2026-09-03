@@ -120,5 +120,109 @@ export const IndicatorService = {
     }
     
     return atr;
+  },
+
+  volumeSma(data: number[], period: number): number | null {
+    return this.sma(data, period);
+  },
+
+  stochastic(candles: NormalizedCandle[], period: number, smoothK: number = 3, smoothD: number = 3) {
+    if (candles.length < period) return null;
+    
+    const kValues: number[] = [];
+    
+    for (let i = period - 1; i < candles.length; i++) {
+      const slice = candles.slice(i - period + 1, i + 1);
+      const high = Math.max(...slice.map(c => c.high));
+      const low = Math.min(...slice.map(c => c.low));
+      const currentClose = candles[i].close;
+      
+      let k = 50;
+      if (high - low !== 0) {
+         k = ((currentClose - low) / (high - low)) * 100;
+      }
+      kValues.push(k);
+    }
+    
+    if (kValues.length < smoothK) return null;
+    
+    // Smooth K with SMA
+    const smoothedKArr: number[] = [];
+    for (let i = smoothK - 1; i < kValues.length; i++) {
+      const slice = kValues.slice(i - smoothK + 1, i + 1);
+      const smaK = slice.reduce((a, b) => a + b, 0) / smoothK;
+      smoothedKArr.push(smaK);
+    }
+    
+    if (smoothedKArr.length < smoothD) return null;
+    
+    // Smooth D with SMA of smoothed K
+    const sliceD = smoothedKArr.slice(-smoothD);
+    const d = sliceD.reduce((a, b) => a + b, 0) / smoothD;
+    
+    return {
+      k: smoothedKArr[smoothedKArr.length - 1],
+      d: d
+    };
+  },
+
+  adx(candles: NormalizedCandle[], period: number): number | null {
+    if (candles.length <= period * 2) return null; // Need extra data to smooth ADX
+
+    let plusDM = [];
+    let minusDM = [];
+    let tr = [];
+
+    for (let i = 1; i < candles.length; i++) {
+      const highDiff = candles[i].high - candles[i - 1].high;
+      const lowDiff = candles[i - 1].low - candles[i].low;
+
+      let pDM = 0;
+      let mDM = 0;
+
+      if (highDiff > lowDiff && highDiff > 0) pDM = highDiff;
+      if (lowDiff > highDiff && lowDiff > 0) mDM = lowDiff;
+
+      plusDM.push(pDM);
+      minusDM.push(mDM);
+
+      const tr1 = candles[i].high - candles[i].low;
+      const tr2 = Math.abs(candles[i].high - candles[i - 1].close);
+      const tr3 = Math.abs(candles[i].low - candles[i - 1].close);
+      tr.push(Math.max(tr1, tr2, tr3));
+    }
+
+    // Smoothed values
+    const smooth = (val: number, prev: number) => prev - (prev / period) + val;
+
+    let smoothedTR = tr.slice(0, period).reduce((a, b) => a + b, 0);
+    let smoothedPDM = plusDM.slice(0, period).reduce((a, b) => a + b, 0);
+    let smoothedMDM = minusDM.slice(0, period).reduce((a, b) => a + b, 0);
+
+    const dx: number[] = [];
+
+    for (let i = period; i < tr.length; i++) {
+      smoothedTR = smooth(tr[i], smoothedTR);
+      smoothedPDM = smooth(plusDM[i], smoothedPDM);
+      smoothedMDM = smooth(minusDM[i], smoothedMDM);
+
+      const pDI = (smoothedPDM / smoothedTR) * 100;
+      const mDI = (smoothedMDM / smoothedTR) * 100;
+      
+      let currentDX = 0;
+      if (pDI + mDI !== 0) {
+        currentDX = (Math.abs(pDI - mDI) / (pDI + mDI)) * 100;
+      }
+      dx.push(currentDX);
+    }
+
+    if (dx.length < period) return null;
+
+    let adx = dx.slice(0, period).reduce((a, b) => a + b, 0) / period;
+    for (let i = period; i < dx.length; i++) {
+      adx = ((adx * (period - 1)) + dx[i]) / period;
+    }
+
+    return adx;
   }
 };

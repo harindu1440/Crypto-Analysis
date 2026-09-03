@@ -1,7 +1,25 @@
 export type TrendDirection = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
-export type MarketCondition = 'TRENDING' | 'RANGING' | 'HIGH_VOLATILITY' | 'LOW_VOLATILITY' | 'NEUTRAL';
+export type MarketRegime = 'STRONG_BULLISH' | 'BULLISH' | 'WEAK_BULLISH' | 'RANGE' | 'WEAK_BEARISH' | 'BEARISH' | 'STRONG_BEARISH' | 'HIGH_VOLATILITY' | 'LOW_LIQUIDITY' | 'UNCLEAR';
 export type VolatilityLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME';
-export type VolumeCondition = 'LOW_VOLUME' | 'NORMAL_VOLUME' | 'HIGH_VOLUME';
+export type VolumeCondition = 'LOW_VOLUME' | 'NORMAL_VOLUME' | 'HIGH_VOLUME' | 'VOLUME_EXPANSION' | 'VOLUME_CONTRACTION' | 'VOLUME_BREAKOUT';
+export type BreakoutStatus = 'BREAKOUT_CONFIRMED' | 'BREAKOUT_UNCONFIRMED' | 'BREAKOUT_FAILED' | 'NO_BREAKOUT';
+export type MomentumState = 'MOMENTUM_ACCELERATING' | 'MOMENTUM_STABLE' | 'MOMENTUM_WEAKENING' | 'MOMENTUM_REVERSING';
+export type TradeSetupType = 'TREND_CONTINUATION' | 'BREAKOUT_RETEST' | 'SUPPORT_BOUNCE' | 'BULLISH_REVERSAL' | 'HIGHER_LOW_CONTINUATION' | 'BREAKDOWN_RETEST' | 'RESISTANCE_REJECTION' | 'BEARISH_REVERSAL' | 'LOWER_HIGH_CONTINUATION' | 'NO_SETUP';
+
+export interface SwingPoint {
+  type: 'HH' | 'HL' | 'LH' | 'LL' | 'UNKNOWN';
+  price: number;
+  index: number;
+  timestamp: number;
+}
+
+export interface TradeSetup {
+  type: TradeSetupType;
+  direction: 'LONG' | 'SHORT' | 'NEUTRAL';
+  isValid: boolean;
+  confidence: number;
+  reasoning: string;
+}
 
 export interface NormalizedCandle {
   openTime: number;
@@ -42,6 +60,9 @@ export interface IndicatorSnapshot {
     lower: number;
   };
   atr: number;
+  adx?: number;
+  stochastic?: { k: number; d: number };
+  volumeSma?: number;
 }
 
 export interface VolatilityAnalysis {
@@ -54,12 +75,17 @@ export interface TimeframeAnalysis {
   timeframe: string;
   indicators: IndicatorSnapshot;
   trend: TrendDirection;
-  marketCondition: MarketCondition;
+  marketRegime: MarketRegime;
   support: SupportResistanceLevel[];
   resistance: SupportResistanceLevel[];
   patterns: PatternDetection[];
   volumeCondition: VolumeCondition;
   volatility: VolatilityAnalysis;
+  momentum: MomentumState;
+  swingPoints: SwingPoint[];
+  structure: 'BULLISH' | 'BEARISH' | 'CHOP' | 'CONSOLIDATION';
+  setup: TradeSetup;
+  breakoutStatus: BreakoutStatus;
 }
 
 export interface TechnicalAnalysisSnapshot {
@@ -68,9 +94,13 @@ export interface TechnicalAnalysisSnapshot {
   market: {
     price: number;
     volume24h: number;
-    change24h: number; // We might omit this if not easily retrieved from klines alone, or compute it.
+    change24h: number; 
   };
   timeframes: Record<string, TimeframeAnalysis>;
+  multiTimeframeAlignment?: 'BULLISH' | 'BEARISH' | 'CONFLICTING' | 'NEUTRAL';
+  overallRegime?: MarketRegime;
+  overallDirection?: 'LONG' | 'SHORT' | 'NEUTRAL';
+  opportunityScore?: number;
 }
 
 export const INDICATOR_CONFIG = {

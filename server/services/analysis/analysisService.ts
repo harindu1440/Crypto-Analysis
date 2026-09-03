@@ -1,13 +1,18 @@
 import { BinanceMarketService } from '../binance/binanceMarketService';
 import { IndicatorService } from './indicatorService';
 import { CandleService } from './candleService';
+import { MarketStructureEngine } from './marketStructureEngine';
+import { MarketRegimeEngine } from './marketRegimeEngine';
+import { MomentumVolumeEngine } from './momentumVolumeEngine';
+import { SupportResistanceEngine } from './supportResistanceEngine';
+import { TradeSetupDetector } from './tradeSetupDetector';
+import { MultiTimeframeEngine } from './multiTimeframeEngine';
 import { 
   NormalizedCandle, 
   TimeframeAnalysis, 
   TechnicalAnalysisSnapshot,
   INDICATOR_CONFIG,
   TrendDirection,
-  MarketCondition,
   VolatilityAnalysis,
   VolatilityLevel
 } from './types';
@@ -48,67 +53,80 @@ export const AnalysisService = {
       const macd = IndicatorService.macd(closes, INDICATOR_CONFIG.MACD.fast, INDICATOR_CONFIG.MACD.slow, INDICATOR_CONFIG.MACD.signal);
       const bollingerBands = IndicatorService.bollingerBands(closes, INDICATOR_CONFIG.BOLLINGER.period, INDICATOR_CONFIG.BOLLINGER.multiplier);
       const atr = IndicatorService.atr(candles, INDICATOR_CONFIG.ATR_PERIOD) || 0;
+      const adx = IndicatorService.adx(candles, 14) || 0;
+      const stochastic = IndicatorService.stochastic(candles, 14, 3, 3) || { k: 50, d: 50 };
+      const volumeSma = IndicatorService.volumeSma(candles.map(c => c.volume), 20) || 0;
 
-      // Classifications
-      const { trend, marketCondition } = this.classifyMarket(closes, ema, rsi[INDICATOR_CONFIG.RSI_PERIOD], macd, bollingerBands);
-      const { support, resistance } = CandleService.findSupportResistance(candles);
-      const patterns = CandleService.detectPatterns(candles);
-      const volumeCondition = CandleService.analyzeVolume(candles);
+      const indicators = { sma, ema, rsi, macd, bollingerBands, atr, adx, stochastic, volumeSma };
+
+      // Deterministic Engines
+      const swingPoints = MarketStructureEngine.detectSwingPoints(candles);
+      const structure = MarketStructureEngine.analyzeStructure(swingPoints);
+      const { trend } = this.classifyMarket(closes, ema);
       const volatility = this.analyzeVolatility(latestPrice, atr);
+      const marketRegime = MarketRegimeEngine.classifyRegime(latestPrice, indicators, volatility, structure);
+      const momentum = MomentumVolumeEngine.analyzeMomentum(indicators);
+      const volumeCondition = MomentumVolumeEngine.analyzeVolume(candles, volumeSma);
+      const { support, resistance } = SupportResistanceEngine.calculateLevels(candles, swingPoints);
+      const patterns = CandleService.detectPatterns(candles);
+      
+      const breakoutStatus = 'NO_BREAKOUT'; // Simplified for now
 
-      timeframes[interval] = {
+      const partialTimeframe = {
         timeframe: interval,
-        indicators: { sma, ema, rsi, macd, bollingerBands, atr },
+        indicators,
         trend,
-        marketCondition,
+        marketRegime,
         support,
         resistance,
         patterns,
         volumeCondition,
-        volatility
+        volatility,
+        momentum,
+        swingPoints,
+        structure,
+        breakoutStatus
       };
+
+      const setup = TradeSetupDetector.detect(partialTimeframe as TimeframeAnalysis);
+
+      timeframes[interval] = {
+        ...partialTimeframe,
+        setup
+      } as TimeframeAnalysis;
     }
+
+    const { alignment, overallRegime, overallDirection } = MultiTimeframeEngine.analyzeAlignment(timeframes);
 
     return {
       symbol,
       timestamp: Date.now(),
       market: {
         price: latestPrice,
-        volume24h: latestVolume, // Should use real 24h ticker, but this is a placeholder
+        volume24h: latestVolume,
         change24h: 0 
       },
-      timeframes
+      timeframes,
+      multiTimeframeAlignment: alignment,
+      overallRegime,
+      overallDirection
     };
   },
 
-  classifyMarket(closes: number[], ema: Record<number, number>, rsi: number, macd: any, bb: any): { trend: TrendDirection, marketCondition: MarketCondition } {
+  classifyMarket(closes: number[], ema: Record<number, number>): { trend: TrendDirection } {
     let trend: TrendDirection = 'NEUTRAL';
-    let condition: MarketCondition = 'RANGING';
     const price = closes[closes.length - 1];
 
     const ema20 = ema[21] || 0;
     const ema50 = ema[50] || 0;
-    const ema200 = ema[200] || 0;
 
-    // Basic Trend Assessment
     if (price > ema20 && ema20 > ema50) {
       trend = 'BULLISH';
     } else if (price < ema20 && ema20 < ema50) {
       trend = 'BEARISH';
     }
 
-    // Market Condition Assessment
-    const bbWidth = (bb.upper - bb.lower) / bb.middle; // Bollinger bandwidth
-    
-    if (bbWidth > 0.1) {
-      condition = 'HIGH_VOLATILITY';
-    } else if (bbWidth < 0.02) {
-      condition = 'LOW_VOLATILITY';
-    } else if (Math.abs(macd.histogram) > 0) {
-      condition = 'TRENDING';
-    }
-
-    return { trend, marketCondition: condition };
+    return { trend };
   },
 
   analyzeVolatility(price: number, atr: number): VolatilityAnalysis {

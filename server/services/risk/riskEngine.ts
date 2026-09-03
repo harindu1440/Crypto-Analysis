@@ -22,6 +22,14 @@ export const RiskEngine = {
     const warnings: string[] = [];
     let status: PlanStatus = 'VALID';
 
+    // Enforce Beginner $10 Mode constraints
+    const isBeginnerMode = true; // Hardcoded for this mode
+    if (isBeginnerMode) {
+      if (settings.minimumRiskReward < 2) {
+         settings.minimumRiskReward = 2; // Override to enforce strict 1:2
+      }
+    }
+
     // 0. Account Equity Resolution
     let availableEquity = settings.accountEquity;
     const mode = process.env.ACCOUNT_EQUITY_MODE || 'configured';
@@ -83,6 +91,12 @@ export const RiskEngine = {
     if (notionalValue > maxExposureValue) {
       status = 'REJECTED';
       reasons.push(`Notional value (${notionalValue.toFixed(2)}) exceeds maximum exposure limit (${maxExposureValue.toFixed(2)}).`);
+    }
+    
+    // Beginner Mode: Minimum Notional Check
+    if (isBeginnerMode && notionalValue < 10) {
+      status = 'REJECTED';
+      reasons.push(`Notional value (${notionalValue.toFixed(2)}) is below Binance $10 minimum requirement for Spot.`);
     }
 
     // 4. Take Profit & Risk/Reward Validation
