@@ -40,8 +40,11 @@ export const SupportResistanceEngine = {
     for (const cluster of clusters) {
       // Filter out isolated points
       if (cluster.count >= 2) {
+        // Dynamically assign support vs resistance based on current price!
+        const isSupport = cluster.price < currentPrice;
+        
         const level: SupportResistanceLevel = {
-          type: cluster.type === 'HIGH' ? 'resistance' : 'support',
+          type: isSupport ? 'support' : 'resistance',
           price: cluster.price,
           strength: Math.min(100, cluster.count * 20),
           touches: cluster.count,

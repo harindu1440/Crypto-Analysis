@@ -131,7 +131,7 @@ export const AnalysisService = {
     let trend: TrendDirection = 'NEUTRAL';
     const price = closes[closes.length - 1];
 
-    const ema20 = ema[21] || 0;
+    const ema20 = ema[20] || 0;
     const ema50 = ema[50] || 0;
 
     if (price > ema20 && ema20 > ema50) {

@@ -7,28 +7,30 @@ export const MarketRegimeEngine = {
     volatility: VolatilityAnalysis,
     structure: { trend: 'BULLISH' | 'BEARISH' | 'CHOP' | 'CONSOLIDATION', bos: boolean, choch: boolean, breakout: boolean }
   ): MarketRegime {
-    const ema21 = indicators.ema[21] || 0;
+    const ema20 = indicators.ema[20] || 0;
     const ema50 = indicators.ema[50] || 0;
     const ema200 = indicators.ema[200] || 0;
     const adx = indicators.adx || 0;
     const structTrend = structure.trend;
 
+    // Volume-based liquidity check (instead of arbitrary volatility)
+    if (indicators.volumeSma && indicators.volumeSma < 100) return 'LOW_LIQUIDITY';
+
     // Check for extreme edge cases first
     if (volatility.level === 'EXTREME') return 'HIGH_VOLATILITY';
-    if (volatility.level === 'LOW') return 'LOW_LIQUIDITY'; // Or RANGE depending on ADX
 
-    const priceAboveEma21 = price > ema21;
+    const priceAboveEma20 = price > ema20;
     const priceAboveEma50 = price > ema50;
     const priceAboveEma200 = price > ema200;
     
-    const emaStackedBullish = ema21 > ema50 && ema50 > ema200;
-    const emaStackedBearish = ema21 < ema50 && ema50 < ema200;
+    const emaStackedBullish = ema20 > ema50 && ema50 > ema200;
+    const emaStackedBearish = ema20 < ema50 && ema50 < ema200;
 
     const trending = adx >= 25;
     const weakTrend = adx >= 20 && adx < 25;
 
     // Bullish Regimes
-    if (emaStackedBullish && priceAboveEma21 && trending && structTrend === 'BULLISH') {
+    if (emaStackedBullish && priceAboveEma20 && trending && structTrend === 'BULLISH') {
       return 'STRONG_BULLISH';
     }
     if (emaStackedBullish && priceAboveEma50 && structTrend !== 'BEARISH') {
@@ -40,7 +42,7 @@ export const MarketRegimeEngine = {
     }
 
     // Bearish Regimes
-    if (emaStackedBearish && !priceAboveEma21 && trending && structTrend === 'BEARISH') {
+    if (emaStackedBearish && !priceAboveEma20 && trending && structTrend === 'BEARISH') {
       return 'STRONG_BEARISH';
     }
     if (emaStackedBearish && !priceAboveEma50 && structTrend !== 'BULLISH') {

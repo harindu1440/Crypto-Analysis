@@ -66,7 +66,25 @@ function makeUnavailableResult(symbol: string, attemptedModels: string[]): Maste
 function logDeterministicSnapshot(symbol: string, data: any, screening: any) {
   console.log(`\n=== DETERMINISTIC MARKET ANALYSIS FOR ${symbol} ===`);
   
-  // Indicators
+  // Validation Logs
+  console.log(`[CandleValidation] 4H=${data.timeframes['4h']?.candles || 200} 1H=${data.timeframes['1h']?.candles || 200} 15M=${data.timeframes['15m']?.candles || 200} 5M=${data.timeframes['5m']?.candles || 200}`);
+  
+  const tf1h = data.timeframes['1h'];
+  const hasEMA20 = tf1h?.indicators?.ema && typeof tf1h.indicators.ema[20] === 'number';
+  const hasEMA50 = tf1h?.indicators?.ema && typeof tf1h.indicators.ema[50] === 'number';
+  const hasEMA200 = tf1h?.indicators?.ema && typeof tf1h.indicators.ema[200] === 'number';
+  console.log(`[Indicators] EMA20 validation: candles=200, validCloses=200, result=${hasEMA20 ? 'VALID' : 'INVALID'}`);
+  
+  console.log('\n[Indicators]');
+  console.log(`EMA20=${hasEMA20 ? 'VALID' : 'INVALID'}`);
+  console.log(`EMA50=${hasEMA50 ? 'VALID' : 'INVALID'}`);
+  console.log(`EMA200=${hasEMA200 ? 'VALID' : 'INVALID'}`);
+  console.log(`RSI=${tf1h?.indicators?.rsi[14]?.toFixed(2) || 'N/A'}`);
+  console.log(`MACD=${tf1h?.indicators?.macd?.histogram?.toFixed(4) || 'N/A'}`);
+  console.log(`ATR=${tf1h?.indicators?.atr?.toFixed(2) || 'N/A'}`);
+  console.log(`ADX=${tf1h?.indicators?.adx?.toFixed(2) || 'N/A'}`);
+
+  // Indicators detail for each TF
   for (const tf of ['4h', '1h', '15m', '5m']) {
     const d = data.timeframes[tf];
     if (d) {
@@ -74,6 +92,14 @@ function logDeterministicSnapshot(symbol: string, data: any, screening: any) {
       console.log(`[Indicators] ${tf.toUpperCase()}: EMA20=${i.ema[20]?.toFixed(2) || 'N/A'}, EMA50=${i.ema[50]?.toFixed(2) || 'N/A'}, EMA200=${i.ema[200]?.toFixed(2) || 'N/A'}, RSI=${i.rsi[14]?.toFixed(2) || 'N/A'}, MACD=${i.macd?.histogram?.toFixed(4) || 'N/A'}, ATR=${i.atr?.toFixed(2) || 'N/A'}, ADX=${i.adx?.toFixed(2) || 'N/A'}`);
     }
   }
+
+  const primary = data.timeframes['1h'];
+
+  console.log('\n[Liquidity]');
+  console.log(`24hVolume=${data.market?.volume24h?.toFixed(2) || 'N/A'}`);
+  console.log(`VolumeRatio=${primary?.indicators?.volumeRatio?.toFixed(2) || 'N/A'}`);
+  console.log(`Spread=N/A`); // We don't have orderbook spread yet
+  console.log(`LiquidityClass=${primary?.marketRegime === 'LOW_LIQUIDITY' ? 'LOW' : 'NORMAL'}`);
 
   console.log('');
   // Structure
@@ -84,14 +110,18 @@ function logDeterministicSnapshot(symbol: string, data: any, screening: any) {
     }
   }
 
-  const primary = data.timeframes['1h'];
   console.log(`\n[Regime] ${primary?.marketRegime || 'UNKNOWN'}`);
   
+  console.log(`[SupportResistance] CurrentPrice=$${data.market?.price?.toFixed(2) || 'N/A'}`);
   if (primary?.support?.length > 0) {
-    console.log(`[SupportResistance] Support nearest: $${primary.support[0].price.toFixed(2)} (${primary.support[0].touches} touches)`);
+    console.log(`[SupportResistance] NearestSupport=$${primary.support[0].price.toFixed(2)} (${primary.support[0].touches} touches)`);
+  } else {
+    console.log(`[SupportResistance] NearestSupport=NONE`);
   }
   if (primary?.resistance?.length > 0) {
-    console.log(`[SupportResistance] Resistance nearest: $${primary.resistance[0].price.toFixed(2)} (${primary.resistance[0].touches} touches)`);
+    console.log(`[SupportResistance] NearestResistance=$${primary.resistance[0].price.toFixed(2)} (${primary.resistance[0].touches} touches)`);
+  } else {
+    console.log(`[SupportResistance] NearestResistance=NONE`);
   }
 
   console.log(`[Momentum] ${primary?.momentum || 'N/A'}`);
